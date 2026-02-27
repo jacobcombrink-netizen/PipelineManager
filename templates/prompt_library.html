@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}Prompt Library — Pipeline Manager{% endblock %}
+{% block content %}
+<div class="mb-6 flex items-center justify-between">
+  <div>
+    <h1 class="text-2xl font-bold text-slate-100">Prompt Library</h1>
+    <p class="text-slate-500 text-sm mt-1">All prompts across all projects. Filter, search, and copy.</p>
+  </div>
+</div>
+
+<!-- Filters -->
+<div class="flex gap-3 mb-5 flex-wrap">
+  <div class="flex gap-2">
+    <a href="/prompt-library" class="btn btn-sm {% if not status_filter and not project_filter %}btn-primary{% else %}btn-ghost{% endif %}">All</a>
+    <a href="/prompt-library?status=pending" class="btn btn-sm {% if status_filter=='pending' %}btn-primary{% else %}btn-ghost{% endif %}">Pending</a>
+    <a href="/prompt-library?status=collected" class="btn btn-sm {% if status_filter=='collected' %}btn-primary{% else %}btn-ghost{% endif %}">Collected</a>
+    <a href="/prompt-library?status=done" class="btn btn-sm {% if status_filter=='done' %}btn-primary{% else %}btn-ghost{% endif %}">Done</a>
+    <a href="/prompt-library?status=flagged" class="btn btn-sm {% if status_filter=='flagged' %}btn-primary{% else %}btn-ghost{% endif %}">Flagged</a>
+  </div>
+  <form method="GET" action="/prompt-library" class="ml-auto">
+    <select class="input w-auto text-sm" name="project_id" onchange="this.form.submit()">
+      <option value="">All Projects</option>
+      {% for p in projects %}<option value="{{ p.id }}" {% if project_filter==p.id|string %}selected{% endif %}>{{ p.name }}</option>{% endfor %}
+    </select>
+  </form>
+  <input type="text" id="search-input" class="input w-48" placeholder="Search prompts…" oninput="filterPrompts(this.value)">
+</div>
+
+{% if prompts %}
+<div class="space-y-2" id="prompt-list">
+  {% for p in prompts %}
+  <div class="card hover:border-slate-700 transition-colors prompt-item"
+       data-text="{{ p.text|lower }}" data-label="{{ p.label|lower }}">
+    <div class="flex items-start gap-3">
+      <div class="w-1 self-stretch rounded-full flex-shrink-0
+        {% if p.status=='collected' %}bg-blue-500
+        {% elif p.status=='done' %}bg-green-600
+        {% elif p.status=='flagged' %}bg-red-600
+        {% else %}bg-slate-700{% endif %}">
+      </div>
+      <div class="flex-1 min-w-0">
+        <div class="flex flex-wrap items-center gap-2 mb-1">
+          {% if p.label %}<span class="text-slate-400 text-xs font-medium uppercase tracking-wider">{{ p.label }}</span>{% endif %}
+          {% if p.project_name %}<span class="badge badge-purple">{{ p.project_name }}</span>{% endif %}
+          {% if p.character_name %}<span class="badge badge-blue">{{ p.character_name }}</span>{% endif %}
+          <span class="badge {% if p.status=='done' %}badge-green{% elif p.status=='collected' %}badge-blue{% elif p.status=='flagged' %}badge-red{% else %}badge-grey{% endif %}">{{ p.status }}</span>
+        </div>
+        <p class="text-sm leading-relaxed cursor-pointer
+          {% if p.status=='done' %}text-slate-600 line-through
+          {% elif p.status=='flagged' %}text-red-400
+          {% elif p.status=='collected' %}text-blue-300
+          {% else %}text-slate-300{% endif %}"
+          onclick="copyText(this, {{ p.id }})" title="Click to copy">{{ p.text }}</p>
+        {% if p.notes %}<p class="text-xs text-orange-400 mt-1">⚠ {{ p.notes }}</p>{% endif %}
+      </div>
+      <div class="flex gap-1 flex-shrink-0">
+        {% if p.project_id %}
+        <a href="/journal?project_id={{ p.project_id }}" class="w-7 h-7 rounded flex items-center justify-center text-xs bg-slate-800 hover:bg-slate-700 text-slate-500" title="Open in journal">↗</a>
+        {% endif %}
+        <form method="POST" action="/prompts/delete/{{ p.id }}" class="inline" onsubmit="return confirm('Delete?')">
+          <button type="submit" class="w-7 h-7 rounded flex items-center justify-center text-xs bg-slate-800 hover:bg-red-900 hover:text-red-400 text-slate-500">×</button>
+        </form>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card text-slate-500 text-sm">No prompts found. Write prompts in the Journal and they'll appear here.</div>
+{% endif %}
+
+<script>
+async function copyText(el, id) {
+  await navigator.clipboard.writeText(el.textContent.trim());
+  const orig = el.style.outline;
+  el.style.outline = '2px solid #6366f1';
+  setTimeout(() => el.style.outline = orig, 500);
+}
+function filterPrompts(query) {
+  const q = query.toLowerCase();
+  document.querySelectorAll('.prompt-item').forEach(el => {
+    const match = el.dataset.text.includes(q) || el.dataset.label.includes(q);
+    el.style.display = match ? '' : 'none';
+  });
+}
+</script>
+{% endblock %}

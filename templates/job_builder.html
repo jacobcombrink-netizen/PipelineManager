@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}Job Builder — Pipeline Manager{% endblock %}
+{% block content %}
+<div class="mb-6">
+  <h1 class="text-2xl font-bold text-slate-100">Job Builder</h1>
+  <p class="text-slate-500 text-sm mt-1">Select a character, output type, and ingredients to plan a specific render job.</p>
+</div>
+
+<form method="POST" action="/jobs/builder" class="max-w-2xl">
+  <div class="space-y-5">
+    <!-- Character -->
+    <div class="card">
+      <h2 class="text-slate-300 font-semibold mb-3">Character *</h2>
+      <select class="input" name="character_id" required>
+        <option value="">— Select Character —</option>
+        {% for c in characters %}
+        <option value="{{ c.id }}">{{ c.name }}{% if c.status == 'concept' %} (concept){% endif %}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <!-- Output Type -->
+    <div class="card">
+      <h2 class="text-slate-300 font-semibold mb-3">Output Type *</h2>
+      <select class="input" name="output_type_id" id="ot-select" onchange="loadRequirements(this.value)" required>
+        <option value="">— Select Output Type —</option>
+        {% for ot in output_types %}
+        <option value="{{ ot.id }}">{{ ot.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <!-- Ingredients (dynamic) -->
+    <div id="ingredients-section" class="hidden">
+      <div class="card">
+        <h2 class="text-slate-300 font-semibold mb-1">Ingredients</h2>
+        <p class="text-slate-500 text-xs mb-4">Required categories for this output type are marked. You can also pick from optional categories.</p>
+        <div id="ingredient-pickers" class="space-y-4"></div>
+      </div>
+    </div>
+
+    <!-- All ingredients fallback (when no output type selected) -->
+    <div id="all-ingredients-section" class="card">
+      <h2 class="text-slate-300 font-semibold mb-3">Ingredients <span class="text-slate-500 text-sm font-normal">(select any to include)</span></h2>
+      {% set ns = namespace(current_cat='') %}
+      {% for item in all_ingredients %}
+        {% if item.category_name != ns.current_cat %}
+          {% set ns.current_cat = item.category_name %}
+          <div class="text-xs text-slate-500 uppercase tracking-wider mt-4 mb-2 first:mt-0">{{ item.category_name }}</div>
+        {% endif %}
+        <label class="flex items-center gap-2 py-1 cursor-pointer hover:text-slate-200 text-slate-400 text-sm">
+          <input type="checkbox" name="ingredient_ids" value="{{ item.id }}" class="accent-indigo-500">
+          {% if item.code %}<span class="text-slate-600 font-mono text-xs">{{ item.code }}</span>{% endif %}
+          {{ item.name }}
+        </label>
+      {% endfor %}
+    </div>
+
+    <!-- Status & Notes -->
+    <div class="card">
+      <h2 class="text-slate-300 font-semibold mb-3">Job Details</h2>
+      <div class="space-y-3">
+        <div><label>Initial Status</label>
+          <select class="input" name="status">
+            <option value="planned">Planned</option>
+            <option value="in_progress">In Progress</option>
+            <option value="rendered">Rendered</option>
+          </select>
+        </div>
+        <div><label>Notes</label>
+          <textarea class="input" name="notes" rows="3" placeholder="Prompt details, special instructions, variations to try..."></textarea>
+        </div>
+      </div>
+    </div>
+
+    <button type="submit" class="btn btn-primary px-8 py-3 text-base">Create Render Job</button>
+  </div>
+</form>
+
+<script>
+async function loadRequirements(otId) {
+  const section = document.getElementById('ingredients-section');
+  const allSection = document.getElementById('all-ingredients-section');
+  const pickers = document.getElementById('ingredient-pickers');
+
+  if (!otId) {
+    section.classList.add('hidden');
+    allSection.classList.remove('hidden');
+    return;
+  }
+
+  const res = await fetch('/api/output-type-requirements/' + otId);
+  const reqs = await res.json();
+
+  if (reqs.length === 0) {
+    section.classList.add('hidden');
+    allSection.classList.remove('hidden');
+    return;
+  }
+
+  allSection.classList.add('hidden');
+  section.classList.remove('hidden');
+
+  let html = '';
+  reqs.forEach(req => {
+    html += `<div>
+      <div class="flex items-center gap-2 mb-2">
+        <span class="text-slate-300 font-medium text-sm">${req.category.name}</span>
+        <span class="badge badge-purple text-xs">Required</span>
+      </div>
+      <div class="grid grid-cols-2 gap-1.5">`;
+    req.ingredients.forEach(ing => {
+      html += `<label class="flex items-center gap-2 bg-slate-900 rounded px-3 py-2 cursor-pointer hover:bg-slate-800 text-slate-300 text-sm">
+        <input type="checkbox" name="ingredient_ids" value="${ing.id}" class="accent-indigo-500">
+        ${ing.code ? '<span class="text-slate-500 font-mono text-xs">' + ing.code + '</span>' : ''}
+        ${ing.name}
+      </label>`;
+    });
+    html += `</div></div>`;
+  });
+
+  pickers.innerHTML = html;
+}
+</script>
+{% endblock %}

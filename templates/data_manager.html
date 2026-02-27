@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Data Manager — Pipeline Manager{% endblock %}
+{% block content %}
+<div class="mb-8">
+  <h1 class="text-2xl font-bold text-slate-100">Data Manager</h1>
+  <p class="text-slate-500 text-sm mt-1">Export your entire database to JSON and reimport it into any fresh install. Safe to use at any time.</p>
+</div>
+
+<div class="grid grid-cols-2 gap-6">
+
+  <!-- Export -->
+  <div class="card border-green-900">
+    <h2 class="text-green-400 font-semibold mb-2">Export Data</h2>
+    <p class="text-slate-400 text-sm mb-4">Downloads a <code class="text-slate-300 bg-slate-800 px-1 rounded">.json</code> file containing every record in your database. Keep this as your backup before upgrades.</p>
+
+    <div class="mb-4 bg-slate-900 rounded-lg overflow-hidden">
+      <table class="w-full text-sm">
+        <thead><tr><th class="text-left px-3 py-2 text-slate-500 text-xs uppercase">Table</th><th class="text-right px-3 py-2 text-slate-500 text-xs uppercase">Records</th></tr></thead>
+        <tbody>
+          {% for table, count in counts.items() %}
+          <tr class="border-t border-slate-800">
+            <td class="px-3 py-2 text-slate-300 font-mono text-xs">{{ table }}</td>
+            <td class="px-3 py-2 text-right">
+              <span class="badge {% if count > 0 %}badge-blue{% else %}badge-grey{% endif %}">{{ count }}</span>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <a href="/export" class="btn btn-green w-full block text-center">⬇ Download Export JSON</a>
+  </div>
+
+  <!-- Import -->
+  <div class="card border-blue-900">
+    <h2 class="text-blue-400 font-semibold mb-2">Import Data</h2>
+    <p class="text-slate-400 text-sm mb-2">Upload a previously exported <code class="text-slate-300 bg-slate-800 px-1 rounded">.json</code> file. Records are <strong class="text-slate-300">merged</strong> — existing records by ID are skipped, new ones are added. Your current data is safe.</p>
+
+    <div class="bg-amber-950 border border-amber-800 rounded-lg p-3 mb-4 text-xs text-amber-200">
+      💡 <strong>Tip:</strong> To do a clean rebuild, delete <code>pipeline.db</code> from the folder (the app will recreate it empty), then import your backup.
+    </div>
+
+    <form method="POST" action="/import" enctype="multipart/form-data" class="space-y-3">
+      <div>
+        <label>Select Export File</label>
+        <input type="file" name="file" accept=".json" required
+          class="block w-full text-sm text-slate-400 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-indigo-600 file:text-white hover:file:bg-indigo-500 cursor-pointer">
+      </div>
+      <button type="submit" class="btn btn-primary w-full">⬆ Import JSON</button>
+    </form>
+  </div>
+
+</div>
+
+<div class="mt-6 card border-slate-800">
+  <h3 class="text-slate-300 font-semibold mb-2">Version Upgrade Workflow</h3>
+  <ol class="text-slate-400 text-sm space-y-1.5 list-decimal list-inside">
+    <li>Export your data using the button above — save the file somewhere safe.</li>
+    <li>Download the new version of Pipeline Manager.</li>
+    <li>Run <code class="text-slate-300 bg-slate-800 px-1 rounded">setup.bat</code> in the new folder.</li>
+    <li>Open the app at <code class="text-slate-300 bg-slate-800 px-1 rounded">http://localhost:5000/data</code> and import your backup file.</li>
+    <li>Done. All your records will be restored. Any new fields in the updated schema will default to empty.</li>
+  </ol>
+</div>
+{% endblock %}

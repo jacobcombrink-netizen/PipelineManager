@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% block title %}Archetypes — Pipeline Manager{% endblock %}
+{% block content %}
+<div class="mb-8">
+  <h1 class="text-2xl font-bold text-slate-100">Archetypes</h1>
+  <p class="text-slate-500 text-sm mt-1"><span class="badge badge-purple">Concept</span> = original character types. <span class="badge badge-pink">Meta</span> = common media tropes. Successful Meta archetypes can seed new Concept archetypes with built-in marketing vectors.</p>
+</div>
+
+<div class="grid grid-cols-3 gap-6">
+  <div class="col-span-1">
+    <div class="card">
+      <h2 class="text-slate-300 font-semibold mb-4">New Archetype</h2>
+      <form method="POST" action="/archetypes/add" class="space-y-3">
+        <div><label>Name *</label><input class="input" name="name" required placeholder="e.g. The Trickster"></div>
+        <div><label>Type</label>
+          <div class="toggle-btn w-full">
+            <input type="radio" name="subtype" id="add_concept" value="concept" checked>
+            <label for="add_concept">Concept</label>
+            <input type="radio" name="subtype" id="add_meta" value="meta">
+            <label for="add_meta">Meta</label>
+          </div>
+        </div>
+        <div><label>Description</label><textarea class="input" name="description" rows="3" placeholder="Personality, traits, use cases..."></textarea></div>
+        <div><label>Tags <span class="text-slate-600">(comma-separated)</span></label>
+          <input class="input" name="tags" placeholder="e.g. comic, energetic, young">
+        </div>
+        <button type="submit" class="btn btn-primary w-full">Add Archetype</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="col-span-2">
+    {% if items %}
+      {% for subtype_label, subtype_val, badge_class in [('Concept Archetypes', 'concept', 'badge-purple'), ('Meta Archetypes', 'meta', 'badge-pink')] %}
+      {% set group = items | selectattr('subtype', 'equalto', subtype_val) | list %}
+      {% if group %}
+      <div class="mb-6">
+        <h3 class="text-slate-400 text-xs uppercase tracking-wider font-semibold mb-3">{{ subtype_label }}</h3>
+        <div class="flex flex-col gap-3">
+          {% for item in group %}
+          <div class="card hover:border-slate-700 transition-colors">
+            <div class="flex items-start justify-between gap-4">
+              <div class="flex items-start gap-4 flex-1 min-w-0">
+                {% if item.image_path %}
+                <img src="/static/images/{{ item.image_path }}" class="w-14 h-14 rounded-lg object-cover flex-shrink-0 border border-slate-700">
+                {% else %}
+                <div class="w-14 h-14 rounded-lg bg-slate-800 flex items-center justify-center flex-shrink-0 text-slate-600 text-xl">🧬</div>
+                {% endif %}
+                <div class="flex-1 min-w-0">
+                  <div class="flex flex-wrap items-center gap-2 mb-1">
+                    <span class="text-slate-100 font-semibold">{{ item.name }}</span>
+                    <span class="badge {{ badge_class }}">{{ item.subtype|title }}</span>
+                    <span class="badge badge-blue">{{ item.char_count }} char{{ 's' if item.char_count != 1 }}</span>
+                  </div>
+                  {% if item.description %}<p class="text-slate-400 text-sm mb-2">{{ item.description }}</p>{% endif %}
+                  {% if item.tags %}
+                  <div class="flex flex-wrap gap-1">
+                    {% for tag in item.tags.split(',') %}{% if tag.strip() %}<span class="badge badge-grey">{{ tag.strip() }}</span>{% endif %}{% endfor %}
+                  </div>
+                  {% endif %}
+                </div>
+              </div>
+              <div class="flex gap-1.5 flex-shrink-0">
+                <button onclick="openEditArchetype({{ item.id }}, '{{ item.name|e }}', '{{ item.subtype }}', `{{ item.description|e }}`, '{{ item.tags|e }}', '{{ item.image_path|default('') }}')" class="btn btn-sm btn-ghost">Edit</button>
+                <form method="POST" action="/archetypes/delete/{{ item.id }}" onsubmit="return confirm('Delete this archetype?')">
+                  <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                </form>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+      {% endfor %}
+    {% else %}
+    <div class="card text-slate-500 text-sm">No archetypes yet. Add your first one on the left.</div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Edit Modal -->
+<dialog id="edit-archetype-modal">
+  <div class="modal-header">
+    <span class="font-semibold text-slate-100">Edit Archetype</span>
+    <button onclick="closeModal('edit-archetype-modal')" class="text-slate-500 hover:text-slate-300 text-xl leading-none">×</button>
+  </div>
+  <form id="edit-archetype-form" method="POST">
+    <div class="modal-body space-y-3">
+      <div>
+        <label>Splash Image <span class="text-slate-600">(drag & drop, click, or Ctrl+V)</span></label>
+        <div id="ea-img-zone" data-image-zone data-preview-id="ea-img-preview" data-hidden-id="ea-img-path"
+          class="border-2 border-dashed border-slate-700 rounded-lg p-3 text-center cursor-pointer hover:border-slate-500 transition-colors min-h-20 flex flex-col items-center justify-center gap-2">
+          <img id="ea-img-preview" src="" class="hidden max-h-32 rounded-lg mx-auto object-contain">
+          <span class="text-slate-500 text-xs">Drop image, click to browse, or Ctrl+V to paste</span>
+        </div>
+        <input type="hidden" id="ea-img-path" name="image_path">
+      </div>
+      <div><label>Name *</label><input class="input" id="ea-name" name="name" required></div>
+      <div>
+        <label>Type</label>
+        <div class="toggle-btn w-full">
+          <input type="radio" name="subtype" id="ea_concept" value="concept">
+          <label for="ea_concept">Concept</label>
+          <input type="radio" name="subtype" id="ea_meta" value="meta">
+          <label for="ea_meta">Meta</label>
+        </div>
+      </div>
+      <div><label>Description</label><textarea class="input" id="ea-desc" name="description" rows="3"></textarea></div>
+      <div><label>Tags</label><input class="input" id="ea-tags" name="tags"></div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" onclick="closeModal('edit-archetype-modal')" class="btn btn-ghost">Cancel</button>
+      <button type="submit" class="btn btn-primary">Save Changes</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+function openEditArchetype(id, name, subtype, desc, tags, imgPath) {
+  document.getElementById('edit-archetype-form').action = '/archetypes/edit/' + id;
+  document.getElementById('ea-name').value = name;
+  document.getElementById('ea-desc').value = desc;
+  document.getElementById('ea-tags').value = tags;
+  document.getElementById('ea_concept').checked = subtype === 'concept';
+  document.getElementById('ea_meta').checked = subtype === 'meta';
+  const preview = document.getElementById('ea-img-preview');
+  const hiddenPath = document.getElementById('ea-img-path');
+  if (imgPath) {
+    preview.src = '/static/images/' + imgPath;
+    preview.classList.remove('hidden');
+    hiddenPath.value = imgPath;
+  } else {
+    preview.src = ''; preview.classList.add('hidden'); hiddenPath.value = '';
+  }
+  setupImageZone('ea-img-zone', 'ea-img-preview', 'ea-img-path');
+  openModal('edit-archetype-modal');
+}
+</script>
+{% endblock %}

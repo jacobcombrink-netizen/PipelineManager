@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% block title %}Characters — Pipeline Manager{% endblock %}
+{% block content %}
+<div class="mb-8">
+  <h1 class="text-2xl font-bold text-slate-100">Characters</h1>
+  <p class="text-slate-500 text-sm mt-1">Specific characters used in renders. Optionally linked to an archetype.</p>
+</div>
+
+<div class="grid grid-cols-3 gap-6">
+  <div class="col-span-1">
+    <div class="card">
+      <h2 class="text-slate-300 font-semibold mb-4">New Character</h2>
+      <form method="POST" action="/characters/add" class="space-y-3">
+        <div><label>Name *</label><input class="input" name="name" required placeholder="Character name"></div>
+        <div><label>Archetype</label>
+          <select class="input" name="archetype_id">
+            <option value="">— None —</option>
+            {% for a in archetypes %}<option value="{{ a.id }}">{{ a.name }}</option>{% endfor %}
+          </select>
+        </div>
+        <div><label>Status</label>
+          <select class="input" name="status">
+            <option value="concept">Concept</option><option value="active">Active</option><option value="retired">Retired</option>
+          </select>
+        </div>
+        <div><label>Description</label><textarea class="input" name="description" rows="2" placeholder="Who is this character?"></textarea></div>
+        <div><label>Visual Notes</label><textarea class="input" name="visual_notes" rows="2" placeholder="Appearance, prompt cues..."></textarea></div>
+        <div><label>Tags</label><input class="input" name="tags" placeholder="e.g. female, fantasy, dark"></div>
+        <button type="submit" class="btn btn-primary w-full">Add Character</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="col-span-2">
+    {% if items %}
+    <div class="card p-0 overflow-hidden">
+      <table>
+        <thead><tr><th>Name</th><th>Archetype</th><th>Status</th><th>Description</th><th></th></tr></thead>
+        <tbody>
+          {% for item in items %}
+          <tr>
+            <td>
+              <div class="flex items-center gap-2">
+                {% if item.image_path %}
+                <img src="/static/images/{{ item.image_path }}" class="w-9 h-9 rounded-lg object-cover flex-shrink-0 border border-slate-700">
+                {% else %}
+                <div class="w-9 h-9 rounded-lg bg-slate-800 flex items-center justify-center flex-shrink-0 text-slate-600 text-sm">🎭</div>
+                {% endif %}
+                <span class="text-slate-100 font-medium">{{ item.name }}</span>
+              </div>
+            </td>
+            <td class="text-slate-400 text-sm">{{ item.archetype_name or '—' }}</td>
+            <td>{% if item.status=='active' %}<span class="badge badge-green">Active</span>
+                {% elif item.status=='retired' %}<span class="badge badge-grey">Retired</span>
+                {% else %}<span class="badge badge-blue">Concept</span>{% endif %}</td>
+            <td class="text-slate-400 text-sm max-w-xs truncate">{{ item.description or '—' }}</td>
+            <td>
+              <div class="flex gap-1">
+                <button onclick="openEditCharacter({{ item.id }}, '{{ item.name|e }}', '{{ item.archetype_id or '' }}', '{{ item.status }}', `{{ item.description|e }}`, `{{ item.visual_notes|e }}`, '{{ item.tags|e }}', '{{ item.image_path|default('') }}')" class="btn btn-sm btn-ghost">Edit</button>
+                <form method="POST" action="/characters/delete/{{ item.id }}" onsubmit="return confirm('Delete {{ item.name|e }}?')">
+                  <button type="submit" class="btn btn-sm btn-danger">×</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="card text-slate-500 text-sm">No characters yet.</div>
+    {% endif %}
+  </div>
+</div>
+
+<dialog id="edit-character-modal">
+  <div class="modal-header">
+    <span class="font-semibold text-slate-100">Edit Character</span>
+    <button onclick="closeModal('edit-character-modal')" class="text-slate-500 hover:text-slate-300 text-xl">×</button>
+  </div>
+  <form id="edit-character-form" method="POST">
+    <div class="modal-body space-y-3">
+      <!-- Image Upload Zone -->
+      <div>
+        <label>Splash Image <span class="text-slate-600">(drag & drop, click, or Ctrl+V)</span></label>
+        <div id="ec-img-zone" data-image-zone data-preview-id="ec-img-preview" data-hidden-id="ec-img-path"
+          class="border-2 border-dashed border-slate-700 rounded-lg p-3 text-center cursor-pointer hover:border-slate-500 transition-colors min-h-20 flex flex-col items-center justify-center gap-2">
+          <img id="ec-img-preview" src="" class="hidden max-h-32 rounded-lg mx-auto object-contain">
+          <span class="text-slate-500 text-xs">Drop image, click to browse, or Ctrl+V to paste</span>
+        </div>
+        <input type="hidden" id="ec-img-path" name="image_path">
+      </div>
+      <div><label>Name *</label><input class="input" id="ec-name" name="name" required></div>
+      <div><label>Archetype</label>
+        <select class="input" id="ec-archetype" name="archetype_id">
+          <option value="">— None —</option>
+          {% for a in archetypes %}<option value="{{ a.id }}">{{ a.name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div><label>Status</label>
+        <select class="input" id="ec-status" name="status">
+          <option value="concept">Concept</option><option value="active">Active</option><option value="retired">Retired</option>
+        </select>
+      </div>
+      <div><label>Description</label><textarea class="input" id="ec-desc" name="description" rows="2"></textarea></div>
+      <div><label>Visual Notes</label><textarea class="input" id="ec-visual" name="visual_notes" rows="2"></textarea></div>
+      <div><label>Tags</label><input class="input" id="ec-tags" name="tags"></div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" onclick="closeModal('edit-character-modal')" class="btn btn-ghost">Cancel</button>
+      <button type="submit" class="btn btn-primary">Save Changes</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+function openEditCharacter(id, name, archetypeId, status, desc, visual, tags, imgPath) {
+  document.getElementById('edit-character-form').action = '/characters/edit/' + id;
+  document.getElementById('ec-name').value = name;
+  document.getElementById('ec-archetype').value = archetypeId;
+  document.getElementById('ec-status').value = status;
+  document.getElementById('ec-desc').value = desc;
+  document.getElementById('ec-visual').value = visual;
+  document.getElementById('ec-tags').value = tags;
+  const preview = document.getElementById('ec-img-preview');
+  const hiddenPath = document.getElementById('ec-img-path');
+  if (imgPath) {
+    preview.src = '/static/images/' + imgPath;
+    preview.classList.remove('hidden');
+    hiddenPath.value = imgPath;
+  } else {
+    preview.src = ''; preview.classList.add('hidden'); hiddenPath.value = '';
+  }
+  setupImageZone('ec-img-zone', 'ec-img-preview', 'ec-img-path');
+  openModal('edit-character-modal');
+}
+</script>
+{% endblock %}

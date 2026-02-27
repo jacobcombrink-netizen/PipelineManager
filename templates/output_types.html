@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}Output Types — Pipeline Manager{% endblock %}
+{% block content %}
+<div class="mb-8">
+  <h1 class="text-2xl font-bold text-slate-100">Output Types</h1>
+  <p class="text-slate-500 text-sm mt-1">Deliverable formats. Defines which ingredient categories are required for each type.</p>
+</div>
+<div class="grid grid-cols-3 gap-6">
+  <div class="col-span-1 space-y-4">
+    <div class="card">
+      <h2 class="text-slate-300 font-semibold mb-4">New Output Type</h2>
+      <form method="POST" action="/output-types/add" class="space-y-3">
+        <div><label>Name *</label><input class="input" name="name" required placeholder="e.g. Promo Clip, Loop"></div>
+        <div><label>Description</label><textarea class="input" name="description" rows="2"></textarea></div>
+        <button type="submit" class="btn btn-primary w-full">Add Output Type</button>
+      </form>
+    </div>
+    <div class="card">
+      <h2 class="text-slate-300 font-semibold mb-4">Add Ingredient Requirement</h2>
+      {% if items and categories %}
+      <form method="POST" action="/output-types/add-requirement" class="space-y-3">
+        <div><label>Output Type *</label>
+          <select class="input" name="output_type_id" required>
+            <option value="">— Select —</option>
+            {% for ot in items %}<option value="{{ ot.id }}">{{ ot.name }}</option>{% endfor %}
+          </select>
+        </div>
+        <div><label>Requires Category *</label>
+          <select class="input" name="category_id" required>
+            <option value="">— Select —</option>
+            {% for cat in categories %}<option value="{{ cat.id }}">{{ cat.name }}</option>{% endfor %}
+          </select>
+        </div>
+        <button type="submit" class="btn btn-primary w-full">Add Requirement</button>
+      </form>
+      {% else %}<p class="text-slate-600 text-sm">Need at least one output type and one ingredient category.</p>{% endif %}
+    </div>
+  </div>
+
+  <div class="col-span-2">
+    {% if items %}
+    <div class="space-y-4">
+      {% for ot in items %}
+      <div class="card">
+        <div class="flex items-start justify-between mb-2">
+          <div>
+            <div class="text-slate-100 font-semibold">{{ ot.name }}</div>
+            {% if ot.description %}<div class="text-slate-400 text-sm mt-0.5">{{ ot.description }}</div>{% endif %}
+          </div>
+          <div class="flex gap-1.5">
+            <button onclick="openEditOt({{ ot.id }}, '{{ ot.name|e }}', `{{ ot.description|e }}`)" class="btn btn-sm btn-ghost">Edit</button>
+            <form method="POST" action="/output-types/delete/{{ ot.id }}" onsubmit="return confirm('Delete {{ ot.name|e }}?')">
+              <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+            </form>
+          </div>
+        </div>
+        <div class="mt-2 pt-2 border-t border-slate-800">
+          <div class="text-xs text-slate-500 mb-2 uppercase tracking-wider">Required Ingredients</div>
+          {% set reqs = requirements | selectattr('output_type_id', 'equalto', ot.id) | list %}
+          {% if reqs %}
+          <div class="flex flex-wrap gap-2">
+            {% for req in reqs %}
+            <div class="flex items-center gap-1 bg-slate-800 rounded-full pl-3 pr-1 py-0.5">
+              <span class="text-slate-300 text-xs">{{ req.category_name }}</span>
+              <form method="POST" action="/output-types/delete-requirement/{{ req.id }}" class="inline">
+                <button type="submit" class="text-slate-500 hover:text-red-400 text-xs px-1 leading-none">×</button>
+              </form>
+            </div>
+            {% endfor %}
+          </div>
+          {% else %}<span class="text-slate-600 text-xs">No requirements defined.</span>{% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="card text-slate-500 text-sm">No output types yet.</div>
+    {% endif %}
+  </div>
+</div>
+
+<dialog id="edit-ot-modal">
+  <div class="modal-header">
+    <span class="font-semibold text-slate-100">Edit Output Type</span>
+    <button onclick="closeModal('edit-ot-modal')" class="text-slate-500 hover:text-slate-300 text-xl">×</button>
+  </div>
+  <form id="edit-ot-form" method="POST">
+    <div class="modal-body space-y-3">
+      <div><label>Name *</label><input class="input" id="eot-name" name="name" required></div>
+      <div><label>Description</label><textarea class="input" id="eot-desc" name="description" rows="2"></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" onclick="closeModal('edit-ot-modal')" class="btn btn-ghost">Cancel</button>
+      <button type="submit" class="btn btn-primary">Save</button>
+    </div>
+  </form>
+</dialog>
+<script>
+function openEditOt(id, name, desc) {
+  document.getElementById('edit-ot-form').action = '/output-types/edit/' + id;
+  document.getElementById('eot-name').value = name;
+  document.getElementById('eot-desc').value = desc;
+  openModal('edit-ot-modal');
+}
+</script>
+{% endblock %}

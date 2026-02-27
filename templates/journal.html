@@ -1,0 +1,223 @@
+{% extends "base.html" %}
+{% block title %}Journal — Pipeline Manager{% endblock %}
+{% block content %}
+
+<div class="flex gap-4 h-full">
+  <!-- Sidebar: project picker + linked jobs -->
+  <div class="w-56 flex-shrink-0 space-y-4">
+    <div>
+      <label class="mb-1 block">Active Project</label>
+      <select class="input text-sm" onchange="window.location='/journal?project_id='+this.value">
+        <option value="">— Select Project —</option>
+        {% for p in all_projects %}
+        <option value="{{ p.id }}" {% if project_id and project_id == p.id %}selected{% endif %}>{{ p.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    {% if current_project %}
+    <div class="card p-3">
+      <div class="text-slate-300 font-semibold text-sm mb-1">{{ current_project.name }}</div>
+      {% if current_project.description %}<p class="text-slate-500 text-xs mb-2">{{ current_project.description }}</p>{% endif %}
+      <div class="text-xs text-slate-500 uppercase tracking-wider mb-2">Linked Jobs</div>
+      {% if linked_jobs %}
+      <div class="space-y-1">
+        {% for job in linked_jobs %}
+        <div class="flex items-center justify-between bg-slate-900 rounded px-2 py-1.5">
+          <div class="min-w-0">
+            <div class="text-slate-300 text-xs truncate">{{ job.character_name or '?' }}</div>
+            <div class="text-slate-500 text-xs truncate">{{ job.output_type_name or '—' }}</div>
+          </div>
+          <form method="POST" action="/projects/{{ project_id }}/unlink-job/{{ job.link_id }}">
+            <button type="submit" class="text-slate-600 hover:text-red-400 text-xs ml-1">×</button>
+          </form>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="text-slate-600 text-xs">No jobs linked.</p>
+      {% endif %}
+      <form method="POST" action="/projects/{{ project_id }}/link-job" class="mt-2">
+        <select class="input text-xs py-1" name="job_id">
+          <option value="">Link a job…</option>
+          {% for j in all_jobs %}
+          <option value="{{ j.id }}">#{{ j.id }} {{ j.character_name or '' }}</option>
+          {% endfor %}
+        </select>
+        <button type="submit" class="btn btn-sm btn-ghost w-full mt-1">+ Link</button>
+      </form>
+    </div>
+    {% endif %}
+
+    <a href="/projects" class="btn btn-ghost w-full block text-center text-sm">Manage Projects →</a>
+  </div>
+
+  <!-- Main: notepad + prompts -->
+  <div class="flex-1 min-w-0 space-y-5">
+    <div class="flex items-center justify-between">
+      <h1 class="text-2xl font-bold text-slate-100">
+        {% if current_project %}{{ current_project.name }}{% else %}Journal{% endif %}
+      </h1>
+      {% if current_project %}
+      <span class="text-slate-500 text-sm">{{ prompts|length }} prompt{{ 's' if prompts|length != 1 }}</span>
+      {% endif %}
+    </div>
+
+    {% if current_project %}
+    <!-- Prompt composer -->
+    <div class="card border-indigo-900">
+      <h2 class="text-slate-300 font-semibold mb-3">✏️ Write & Queue a Prompt</h2>
+      <form method="POST" action="/prompts/add" class="space-y-3">
+        <input type="hidden" name="project_id" value="{{ project_id }}">
+        <div>
+          <label>Label <span class="text-slate-600">(short name for this prompt)</span></label>
+          <input class="input" name="label" placeholder="e.g. Running scene v1">
+        </div>
+        <div>
+          <label>Link to Render Job <span class="text-slate-600">(optional)</span></label>
+          <select class="input" name="job_id">
+            <option value="">— No specific job —</option>
+            {% for job in linked_jobs %}
+            <option value="{{ job.id }}">#{{ job.id }} — {{ job.character_name or '?' }} / {{ job.output_type_name or '—' }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label>Prompt Text *</label>
+          <textarea class="input" name="text" rows="5" required
+            placeholder="Write your full render prompt here. You can allocate it to a project and queue it for use in Telegram or your render engine."></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary">Add to Queue →</button>
+      </form>
+    </div>
+
+    <!-- Prompt queue -->
+    {% if prompts %}
+    <div>
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-slate-300 font-semibold">Prompt Queue</h2>
+        <div class="flex gap-2 text-xs text-slate-500">
+          <span class="flex items-center gap-1">⬜ pending</span>
+          <span class="flex items-center gap-1 text-blue-400">📋 collected</span>
+          <span class="flex items-center gap-1 text-green-400">✓ done</span>
+          <span class="flex items-center gap-1 text-red-400">! flagged</span>
+        </div>
+      </div>
+      <div class="space-y-2" id="prompt-list">
+        {% for p in prompts %}
+        <div class="card prompt-card transition-all" id="prompt-{{ p.id }}" data-status="{{ p.status }}">
+          <div class="flex items-start gap-3">
+            <!-- Status indicator bar -->
+            <div class="w-1 self-stretch rounded-full flex-shrink-0 prompt-bar
+              {% if p.status == 'collected' %}bg-blue-500
+              {% elif p.status == 'done' %}bg-green-600
+              {% elif p.status == 'flagged' %}bg-red-600
+              {% else %}bg-slate-700{% endif %}">
+            </div>
+            <div class="flex-1 min-w-0">
+              {% if p.label %}
+              <div class="text-xs text-slate-500 font-medium uppercase tracking-wider mb-1">{{ p.label }}</div>
+              {% endif %}
+              <!-- Prompt text — click to copy -->
+              <p class="text-sm leading-relaxed cursor-pointer select-text prompt-text
+                {% if p.status == 'done' %}text-slate-600 line-through
+                {% elif p.status == 'flagged' %}text-red-400
+                {% elif p.status == 'collected' %}text-blue-300
+                {% else %}text-slate-200{% endif %}"
+                onclick="copyPrompt({{ p.id }}, this)"
+                title="Click to copy to clipboard">{{ p.text }}</p>
+              {% if p.notes %}<p class="text-xs text-orange-400 mt-1">⚠ {{ p.notes }}</p>{% endif %}
+            </div>
+            <!-- Action buttons -->
+            <div class="flex gap-1 flex-shrink-0">
+              <button onclick="setPromptStatus({{ p.id }}, 'done')" title="Mark done" class="w-7 h-7 rounded flex items-center justify-center text-xs bg-slate-800 hover:bg-green-900 hover:text-green-400 text-slate-500">✓</button>
+              <button onclick="setPromptStatus({{ p.id }}, 'pending')" title="Reset" class="w-7 h-7 rounded flex items-center justify-center text-xs bg-slate-800 hover:bg-slate-700 text-slate-500">↺</button>
+              <button onclick="setPromptStatus({{ p.id }}, 'flagged')" title="Flag for revision" class="w-7 h-7 rounded flex items-center justify-center text-xs bg-slate-800 hover:bg-red-900 hover:text-red-400 text-slate-500">!</button>
+              <button onclick="openEditPrompt({{ p.id }}, `{{ p.label|e }}`, `{{ p.text|e }}`, `{{ p.notes|e }}`)" title="Edit" class="w-7 h-7 rounded flex items-center justify-center text-xs bg-slate-800 hover:bg-slate-700 text-slate-500">✎</button>
+              <form method="POST" action="/prompts/delete/{{ p.id }}" class="inline" onsubmit="return confirm('Delete prompt?')">
+                <button type="submit" title="Delete" class="w-7 h-7 rounded flex items-center justify-center text-xs bg-slate-800 hover:bg-red-900 hover:text-red-400 text-slate-500">×</button>
+              </form>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% else %}
+    <div class="card text-slate-500 text-sm">No prompts yet. Write one above and add it to the queue.</div>
+    {% endif %}
+
+    {% else %}
+    <div class="card text-slate-500 text-sm">Select or create a project on the left to start journaling.</div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Edit Prompt Modal -->
+<dialog id="edit-prompt-modal">
+  <div class="modal-header">
+    <span class="font-semibold text-slate-100">Edit Prompt</span>
+    <button onclick="closeModal('edit-prompt-modal')" class="text-slate-500 hover:text-slate-300 text-xl">×</button>
+  </div>
+  <form id="edit-prompt-form" method="POST">
+    <div class="modal-body space-y-3">
+      <div><label>Label</label><input class="input" id="epr-label" name="label"></div>
+      <div><label>Prompt Text *</label><textarea class="input" id="epr-text" name="text" rows="6" required></textarea></div>
+      <div><label>Revision Notes <span class="text-slate-600">(shown in orange when flagged)</span></label>
+        <input class="input" id="epr-notes" name="notes" placeholder="What needs fixing?">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" onclick="closeModal('edit-prompt-modal')" class="btn btn-ghost">Cancel</button>
+      <button type="submit" class="btn btn-primary">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+async function copyPrompt(id, el) {
+  const text = el.textContent.trim();
+  try {
+    await navigator.clipboard.writeText(text);
+    // Set to collected if it was pending
+    const card = document.getElementById('prompt-' + id);
+    if (card.dataset.status === 'pending') {
+      setPromptStatus(id, 'collected');
+    }
+    // Flash feedback
+    const orig = el.style.outline;
+    el.style.outline = '2px solid #6366f1';
+    setTimeout(() => el.style.outline = orig, 600);
+  } catch(e) {}
+}
+
+async function setPromptStatus(id, status) {
+  await fetch('/api/prompts/status/' + id, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({status})
+  });
+  // Update UI without reload
+  const card = document.getElementById('prompt-' + id);
+  card.dataset.status = status;
+  const bar = card.querySelector('.prompt-bar');
+  const text = card.querySelector('.prompt-text');
+  bar.className = 'w-1 self-stretch rounded-full flex-shrink-0 prompt-bar ' + {
+    pending: 'bg-slate-700', collected: 'bg-blue-500', done: 'bg-green-600', flagged: 'bg-red-600'
+  }[status];
+  text.className = text.className.replace(/text-(slate-200|slate-600|blue-300|red-400)/g, '');
+  const colours = {pending:'text-slate-200',collected:'text-blue-300',done:'text-slate-600',flagged:'text-red-400'};
+  text.classList.add(colours[status]);
+  if (status === 'done') text.classList.add('line-through');
+  else text.classList.remove('line-through');
+}
+
+function openEditPrompt(id, label, text, notes) {
+  document.getElementById('edit-prompt-form').action = '/prompts/edit/' + id;
+  document.getElementById('epr-label').value = label;
+  document.getElementById('epr-text').value = text;
+  document.getElementById('epr-notes').value = notes;
+  openModal('edit-prompt-modal');
+}
+</script>
+{% endblock %}

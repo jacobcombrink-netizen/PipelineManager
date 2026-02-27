@@ -1,0 +1,282 @@
+{% extends "base.html" %}
+{% block title %}Ingredients — Pipeline Manager{% endblock %}
+{% block content %}
+<div class="mb-6">
+  <h1 class="text-2xl font-bold text-slate-100">Ingredients</h1>
+  <p class="text-slate-500 text-sm mt-1">Animation building blocks. Create categories first (e.g. Action, Motion, Emotion), then add items.</p>
+</div>
+
+<!-- Tab nav -->
+<div class="flex gap-1 mb-6 border-b border-slate-800">
+  <button onclick="showTab('tab-ingredients')" id="btn-ingredients" class="tab-btn active-tab px-4 py-2 text-sm font-medium border-b-2 border-indigo-500 text-indigo-400">Ingredients</button>
+  <button onclick="showTab('tab-rules')" id="btn-rules" class="tab-btn px-4 py-2 text-sm font-medium border-b-2 border-transparent text-slate-500 hover:text-slate-300">Compatibility Rules {% if rules %}<span class="badge badge-orange ml-1">{{ rules|length }}</span>{% endif %}</button>
+</div>
+
+<!-- INGREDIENTS TAB -->
+<div id="tab-ingredients">
+<div class="grid grid-cols-3 gap-6">
+  <div class="col-span-1 space-y-4">
+    <div class="card">
+      <h2 class="text-slate-300 font-semibold mb-4">New Category</h2>
+      <form method="POST" action="/ingredients/categories/add" class="space-y-3">
+        <div><label>Name *</label><input class="input" name="name" required placeholder="e.g. Action, Motion"></div>
+        <div><label>Description</label><input class="input" name="description" placeholder="What this covers..."></div>
+        <button type="submit" class="btn btn-primary w-full">Add Category</button>
+      </form>
+    </div>
+    <div class="card">
+      <h2 class="text-slate-300 font-semibold mb-4">New Ingredient</h2>
+      {% if categories %}
+      <form method="POST" action="/ingredients/add" class="space-y-3">
+        <div><label>Category *</label>
+          <select class="input" name="category_id" required>
+            <option value="">— Select —</option>
+            {% for cat in categories %}<option value="{{ cat.id }}">{{ cat.name }}</option>{% endfor %}
+          </select>
+        </div>
+        <div><label>Code <span class="text-slate-600">(e.g. A01)</span></label><input class="input" name="code" placeholder="A01"></div>
+        <div><label>Name *</label><input class="input" name="name" required placeholder="e.g. Running"></div>
+        <div><label>Description</label><textarea class="input" name="description" rows="2"></textarea></div>
+        <button type="submit" class="btn btn-primary w-full">Add Ingredient</button>
+      </form>
+      {% else %}<p class="text-slate-600 text-sm">Add a category first.</p>{% endif %}
+    </div>
+  </div>
+
+  <div class="col-span-2 space-y-5">
+    {% if categories %}
+    <div>
+      <h2 class="text-slate-400 text-xs uppercase tracking-wider font-semibold mb-2">Categories</h2>
+      <div class="card p-0 overflow-hidden mb-5">
+        <table>
+          <thead><tr><th>Category</th><th>Description</th><th>Items</th><th></th></tr></thead>
+          <tbody>
+            {% for cat in categories %}
+            <tr>
+              <td class="text-slate-100 font-medium">{{ cat.name }}</td>
+              <td class="text-slate-400 text-sm">{{ cat.description or '—' }}</td>
+              <td><span class="badge badge-blue">{{ cat.item_count }}</span></td>
+              <td>
+                <div class="flex gap-1">
+                  <button onclick="openEditCategory({{ cat.id }}, '{{ cat.name|e }}', '{{ cat.description|e }}')" class="btn btn-sm btn-ghost">Edit</button>
+                  <form method="POST" action="/ingredients/categories/delete/{{ cat.id }}" onsubmit="return confirm('Delete category and all its ingredients?')">
+                    <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if items %}
+    {% set ns = namespace(current_cat='') %}
+    {% for item in items %}
+      {% if item.category_name != ns.current_cat %}
+        {% if not loop.first %}</tbody></table></div>{% endif %}
+        {% set ns.current_cat = item.category_name %}
+        <h2 class="text-slate-400 text-xs uppercase tracking-wider font-semibold mb-2">{{ item.category_name }}</h2>
+        <div class="card p-0 overflow-hidden mb-4">
+        <table><thead><tr><th>Code</th><th>Name</th><th>Description</th><th></th></tr></thead><tbody>
+      {% endif %}
+      <tr>
+        <td class="text-slate-500 font-mono text-xs">{{ item.code or '—' }}</td>
+        <td class="text-slate-100 font-medium">{{ item.name }}</td>
+        <td class="text-slate-400 text-sm max-w-xs truncate">{{ item.description or '—' }}</td>
+        <td>
+          <div class="flex gap-1">
+            <button onclick="openEditIngredient({{ item.id }}, {{ item.category_id }}, '{{ item.code|e }}', '{{ item.name|e }}', `{{ item.description|e }}`)" class="btn btn-sm btn-ghost">Edit</button>
+            <form method="POST" action="/ingredients/delete/{{ item.id }}">
+              <button type="submit" class="btn btn-sm btn-danger">×</button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      {% if loop.last %}</tbody></table></div>{% endif %}
+    {% endfor %}
+    {% elif categories %}
+    <div class="card text-slate-500 text-sm">No ingredients yet. Add some using the form on the left.</div>
+    {% endif %}
+  </div>
+</div>
+</div>
+
+<!-- RULES TAB -->
+<div id="tab-rules" class="hidden">
+<div class="grid grid-cols-3 gap-6">
+  <div class="col-span-1">
+    <div class="card">
+      <h2 class="text-slate-300 font-semibold mb-2">New Compatibility Rule</h2>
+      <p class="text-slate-500 text-xs mb-4">Rules flag when two selected ingredients conflict or must appear together. They don't block job creation — they inform planning.</p>
+      <form method="POST" action="/ingredients/rules/add" class="space-y-3" id="rule-form">
+        <div>
+          <label>Rule Type</label>
+          <div class="toggle-btn w-full">
+            <input type="radio" name="rule_type" id="rt_require" value="require" checked>
+            <label for="rt_require">Requires</label>
+            <input type="radio" name="rule_type" id="rt_exclude" value="exclude">
+            <label for="rt_exclude">Excludes</label>
+          </div>
+        </div>
+        <div class="bg-slate-900 rounded-lg p-3 space-y-2">
+          <div class="text-xs text-slate-500 uppercase tracking-wider">If this is selected…</div>
+          <div>
+            <label>Source Type</label>
+            <select class="input" name="source_type" onchange="updateSourcePicker(this.value)">
+              <option value="ingredient">Specific Ingredient</option>
+              <option value="category">Any from Category</option>
+            </select>
+          </div>
+          <div id="source-ingredient-picker">
+            <label>Ingredient</label>
+            <select class="input" name="source_ingredient_id">
+              <option value="">— Select —</option>
+              {% for item in items %}<option value="{{ item.id }}">[{{ item.category_name }}] {{ item.code and '['+item.code+'] ' or '' }}{{ item.name }}</option>{% endfor %}
+            </select>
+          </div>
+          <div id="source-category-picker" class="hidden">
+            <label>Category</label>
+            <select class="input" name="source_category_id">
+              <option value="">— Select —</option>
+              {% for cat in categories %}<option value="{{ cat.id }}">{{ cat.name }}</option>{% endfor %}
+            </select>
+          </div>
+        </div>
+        <div class="bg-slate-900 rounded-lg p-3 space-y-2">
+          <div class="text-xs text-slate-500 uppercase tracking-wider">…then flag this:</div>
+          <div>
+            <label>Target Type</label>
+            <select class="input" name="target_type" onchange="updateTargetPicker(this.value)">
+              <option value="ingredient">Specific Ingredient</option>
+              <option value="category">Any from Category</option>
+            </select>
+          </div>
+          <div id="target-ingredient-picker">
+            <label>Ingredient</label>
+            <select class="input" name="target_ingredient_id">
+              <option value="">— Select —</option>
+              {% for item in items %}<option value="{{ item.id }}">[{{ item.category_name }}] {{ item.code and '['+item.code+'] ' or '' }}{{ item.name }}</option>{% endfor %}
+            </select>
+          </div>
+          <div id="target-category-picker" class="hidden">
+            <label>Category</label>
+            <select class="input" name="target_category_id">
+              <option value="">— Select —</option>
+              {% for cat in categories %}<option value="{{ cat.id }}">{{ cat.name }}</option>{% endfor %}
+            </select>
+          </div>
+        </div>
+        <div><label>Notes</label><input class="input" name="notes" placeholder="Why this rule exists..."></div>
+        <button type="submit" class="btn btn-primary w-full">Add Rule</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="col-span-2">
+    {% if rules %}
+    <div class="space-y-2">
+      {% for rule in rules %}
+      <div class="card">
+        <div class="flex items-center justify-between gap-4">
+          <div class="flex items-center gap-3 flex-wrap flex-1">
+            <div class="bg-slate-900 rounded px-2 py-1 text-sm text-slate-300">
+              {% if rule.source_type == 'ingredient' %}{{ rule.source_ing_name or '?' }}
+              {% else %}Any <span class="text-slate-400">{{ rule.source_cat_name or '?' }}</span>{% endif %}
+            </div>
+            <span class="font-bold {% if rule.rule_type=='require' %}text-green-400{% else %}text-red-400{% endif %} text-sm">
+              {% if rule.rule_type=='require' %}→ requires{% else %}✗ excludes{% endif %}
+            </span>
+            <div class="bg-slate-900 rounded px-2 py-1 text-sm text-slate-300">
+              {% if rule.target_type == 'ingredient' %}{{ rule.target_ing_name or '?' }}
+              {% else %}Any <span class="text-slate-400">{{ rule.target_cat_name or '?' }}</span>{% endif %}
+            </div>
+            {% if rule.notes %}<span class="text-slate-500 text-xs italic">— {{ rule.notes }}</span>{% endif %}
+          </div>
+          <form method="POST" action="/ingredients/rules/delete/{{ rule.id }}">
+            <button type="submit" class="btn btn-sm btn-danger">×</button>
+          </form>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="card text-slate-500 text-sm">No compatibility rules yet. Use rules to document which ingredients work together or conflict.</div>
+    {% endif %}
+  </div>
+</div>
+</div>
+
+<!-- Edit modals -->
+<dialog id="edit-category-modal">
+  <div class="modal-header">
+    <span class="font-semibold text-slate-100">Edit Category</span>
+    <button onclick="closeModal('edit-category-modal')" class="text-slate-500 hover:text-slate-300 text-xl">×</button>
+  </div>
+  <form id="edit-category-form" method="POST">
+    <div class="modal-body space-y-3">
+      <div><label>Name *</label><input class="input" id="ecat-name" name="name" required></div>
+      <div><label>Description</label><input class="input" id="ecat-desc" name="description"></div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" onclick="closeModal('edit-category-modal')" class="btn btn-ghost">Cancel</button>
+      <button type="submit" class="btn btn-primary">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="edit-ingredient-modal">
+  <div class="modal-header">
+    <span class="font-semibold text-slate-100">Edit Ingredient</span>
+    <button onclick="closeModal('edit-ingredient-modal')" class="text-slate-500 hover:text-slate-300 text-xl">×</button>
+  </div>
+  <form id="edit-ingredient-form" method="POST">
+    <div class="modal-body space-y-3">
+      <div><label>Category *</label>
+        <select class="input" id="ei-cat" name="category_id" required>
+          {% for cat in categories %}<option value="{{ cat.id }}">{{ cat.name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div><label>Code</label><input class="input" id="ei-code" name="code"></div>
+      <div><label>Name *</label><input class="input" id="ei-name" name="name" required></div>
+      <div><label>Description</label><textarea class="input" id="ei-desc" name="description" rows="2"></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" onclick="closeModal('edit-ingredient-modal')" class="btn btn-ghost">Cancel</button>
+      <button type="submit" class="btn btn-primary">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+function showTab(id) {
+  document.getElementById('tab-ingredients').classList.add('hidden');
+  document.getElementById('tab-rules').classList.add('hidden');
+  document.getElementById(id).classList.remove('hidden');
+}
+function openEditCategory(id, name, desc) {
+  document.getElementById('edit-category-form').action = '/ingredients/categories/edit/' + id;
+  document.getElementById('ecat-name').value = name;
+  document.getElementById('ecat-desc').value = desc;
+  openModal('edit-category-modal');
+}
+function openEditIngredient(id, catId, code, name, desc) {
+  document.getElementById('edit-ingredient-form').action = '/ingredients/edit/' + id;
+  document.getElementById('ei-cat').value = catId;
+  document.getElementById('ei-code').value = code;
+  document.getElementById('ei-name').value = name;
+  document.getElementById('ei-desc').value = desc;
+  openModal('edit-ingredient-modal');
+}
+function updateSourcePicker(val) {
+  document.getElementById('source-ingredient-picker').classList.toggle('hidden', val !== 'ingredient');
+  document.getElementById('source-category-picker').classList.toggle('hidden', val !== 'category');
+}
+function updateTargetPicker(val) {
+  document.getElementById('target-ingredient-picker').classList.toggle('hidden', val !== 'ingredient');
+  document.getElementById('target-category-picker').classList.toggle('hidden', val !== 'category');
+}
+</script>
+{% endblock %}

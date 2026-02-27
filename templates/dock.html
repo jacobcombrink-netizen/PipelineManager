@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Pipeline Dock</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; background: #020617; color: #e2e8f0; margin: 0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; user-select: none; }
+    .dock-section { padding: 8px 10px; border-bottom: 1px solid #1e293b; }
+    .dock-title { font-size: 0.65rem; color: #475569; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px; }
+    .quick-btn { display: block; width: 100%; padding: 5px 8px; border-radius: 6px; font-size: 0.78rem; color: #94a3b8; background: #0f172a; border: 1px solid #1e293b; cursor: pointer; text-align: left; margin-bottom: 3px; transition: all 0.1s; text-decoration: none; }
+    .quick-btn:hover { background: #1e293b; color: #e2e8f0; }
+    .job-item { padding: 6px 8px; border-radius: 6px; background: #0f172a; border: 1px solid #1e293b; cursor: pointer; margin-bottom: 4px; transition: all 0.12s; }
+    .job-item:hover { border-color: #4f46e5; }
+    .job-item.selected { border-color: #6366f1; background: #1e1b4b; }
+    .job-name { font-size: 0.78rem; color: #e2e8f0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .job-sub { font-size: 0.68rem; color: #64748b; }
+    .prompt-item { padding: 5px 8px; border-radius: 6px; background: #0f172a; border-left: 3px solid #334155; margin-bottom: 3px; cursor: pointer; transition: all 0.1s; }
+    .prompt-item:hover { background: #1e293b; }
+    .prompt-item.collected { border-left-color: #3b82f6; }
+    .prompt-item.done { border-left-color: #22c55e; opacity: 0.5; }
+    .prompt-item.flagged { border-left-color: #ef4444; }
+    .prompt-text { font-size: 0.72rem; color: #cbd5e1; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .prompt-text.done { text-decoration: line-through; color: #475569; }
+    .prompt-text.flagged { color: #f87171; }
+    .prompt-text.collected { color: #93c5fd; }
+    .drop-zone { border: 2px dashed #334155; border-radius: 8px; padding: 10px; text-align: center; font-size: 0.72rem; color: #475569; cursor: pointer; transition: all 0.15s; }
+    .drop-zone.drag-over { border-color: #6366f1; background: #1e1b4b; color: #a5b4fc; }
+    .drop-zone.success { border-color: #22c55e; background: #14532d22; color: #86efac; }
+    .btn-xs { padding: 2px 6px; border-radius: 4px; font-size: 0.65rem; font-weight: 600; border: none; cursor: pointer; }
+    .scrollable { overflow-y: auto; flex: 1; }
+    .status-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+    select, input { background: #1e293b; border: 1px solid #334155; border-radius: 6px; color: #e2e8f0; font-size: 0.75rem; padding: 4px 6px; width: 100%; }
+    .toast { position: fixed; bottom: 8px; left: 8px; right: 8px; background: #312e81; border: 1px solid #6366f1; color: #a5b4fc; padding: 6px 10px; border-radius: 6px; font-size: 0.72rem; text-align: center; animation: fadeIn 0.2s; z-index: 100; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+    .tabs { display: flex; border-bottom: 1px solid #1e293b; }
+    .tab { flex: 1; padding: 6px; font-size: 0.7rem; text-align: center; color: #475569; cursor: pointer; transition: all 0.1s; }
+    .tab.active { color: #a5b4fc; border-bottom: 2px solid #6366f1; }
+    .pane { display: none; }
+    .pane.active { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
+  </style>
+</head>
+<body>
+
+<!-- Header -->
+<div style="padding:8px 10px;border-bottom:1px solid #1e293b;display:flex;align-items:center;justify-content:space-between;">
+  <span style="font-size:0.75rem;font-weight:700;color:#6366f1;">🚀 Pipeline Dock</span>
+  <div style="display:flex;gap:4px;align-items:center;">
+    <select id="project-select" style="width:130px;font-size:0.68rem;" onchange="onProjectChange(this.value)">
+      <option value="">All Jobs</option>
+      {% for p in projects %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}
+    </select>
+    <button onclick="openSettings()" style="background:none;border:none;color:#475569;cursor:pointer;font-size:1rem;padding:0 2px;" title="Configure dock">⚙</button>
+  </div>
+</div>
+
+<!-- Tabs -->
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('jobs')">Jobs</div>
+  <div class="tab" onclick="switchTab('prompts')">Prompts</div>
+  <div class="tab" onclick="switchTab('submit')">Submit</div>
+  <div class="tab" onclick="switchTab('links')">Links</div>
+</div>
+
+<!-- JOBS TAB -->
+<div class="pane active" id="pane-jobs">
+  <div class="dock-section" style="padding-bottom:4px;">
+    <div class="dock-title">Outstanding Jobs</div>
+  </div>
+  <div class="scrollable" style="padding:0 10px 10px;" id="job-list">
+    {% for job in jobs %}
+    <div class="job-item" id="jitem-{{ job.id }}" onclick="selectJob({{ job.id }}, '{{ job.character_name|e }}', '{{ job.output_type_name|e }}')">
+      <div class="job-name">{{ job.character_name or '(no character)' }}</div>
+      <div class="job-sub">{{ job.output_type_name or '—' }} · #{{ job.id }} · {{ job.status }}</div>
+    </div>
+    {% endfor %}
+    {% if not jobs %}<div style="color:#475569;font-size:0.72rem;padding:8px 0;">No outstanding jobs.</div>{% endif %}
+  </div>
+</div>
+
+<!-- PROMPTS TAB -->
+<div class="pane" id="pane-prompts">
+  <div class="dock-section" style="padding-bottom:4px;">
+    <div class="dock-title" id="prompt-pane-title">Prompts — select a job first</div>
+  </div>
+  <div class="scrollable" style="padding:0 10px 10px;" id="prompt-list">
+    <div style="color:#475569;font-size:0.72rem;padding:8px 0;">Select a job in the Jobs tab to see its prompts.</div>
+  </div>
+</div>
+
+<!-- SUBMIT TAB -->
+<div class="pane" id="pane-submit">
+  <div class="dock-section">
+    <div class="dock-title">Quick Submit Media</div>
+    <div id="selected-job-info" style="font-size:0.72rem;color:#64748b;margin-bottom:6px;">No job selected. Choose one in the Jobs tab.</div>
+    <div id="drop-zone" class="drop-zone" ondragover="onDragOver(event)" ondragleave="onDragLeave()" ondrop="onDrop(event)" onclick="browseFile()">
+      Drop a file here or click to browse
+    </div>
+    <div id="drop-filename" style="font-size:0.65rem;color:#475569;margin-top:4px;display:none;"></div>
+    <input type="hidden" id="submit-filepath">
+    <button onclick="submitMedia()" id="submit-btn" disabled
+      style="width:100%;margin-top:8px;padding:6px;border-radius:6px;font-size:0.75rem;font-weight:600;background:#1e293b;color:#64748b;border:1px solid #334155;cursor:not-allowed;">
+      Submit & Close Job
+    </button>
+  </div>
+  <div style="padding:8px 10px;font-size:0.68rem;color:#334155;">The job will be marked Complete and a media asset will be created with metadata pre-filled from the job.</div>
+</div>
+
+<!-- LINKS TAB -->
+<div class="pane" id="pane-links">
+  <div class="dock-section">
+    <div class="dock-title">Quick Access</div>
+    {% for btn in config %}
+    {% if btn.label and btn.url %}
+    <a href="{{ btn.url }}" target="_blank" class="quick-btn">{{ btn.label }}</a>
+    {% endif %}
+    {% endfor %}
+  </div>
+</div>
+
+<!-- Settings overlay -->
+<div id="settings-overlay" style="display:none;position:fixed;inset:0;background:#000a;z-index:50;overflow-y:auto;">
+  <div style="background:#0f172a;border:1px solid #334155;border-radius:10px;margin:16px;padding:16px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+      <span style="font-weight:600;font-size:0.85rem;">Configure Dock Links</span>
+      <button onclick="closeSettings()" style="background:none;border:none;color:#64748b;font-size:1.2rem;cursor:pointer;">×</button>
+    </div>
+    <form method="POST" action="/dock/config" target="_blank" onsubmit="saveDockConfig(event)">
+      {% for btn in config %}
+      <div style="display:flex;gap:6px;margin-bottom:6px;">
+        <input name="label_{{ btn.slot }}" value="{{ btn.label }}" placeholder="Label" style="flex:1;">
+        <input name="url_{{ btn.slot }}" value="{{ btn.url }}" placeholder="/path or URL" style="flex:2;">
+      </div>
+      {% endfor %}
+      <button type="submit" style="width:100%;margin-top:8px;padding:6px;border-radius:6px;font-size:0.75rem;font-weight:600;background:#4f46e5;color:white;border:none;cursor:pointer;">Save</button>
+    </form>
+  </div>
+</div>
+
+<div id="toast" style="display:none;" class="toast"></div>
+
+<script>
+let selectedJobId = null;
+let selectedFilePath = null;
+
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach((t,i) => {
+    t.classList.toggle('active', ['jobs','prompts','submit','links'][i] === tab);
+  });
+  document.querySelectorAll('.pane').forEach((p,i) => {
+    p.classList.toggle('active', ['pane-jobs','pane-prompts','pane-submit','pane-links'][i] === 'pane-'+tab);
+  });
+}
+
+function selectJob(id, charName, otName) {
+  document.querySelectorAll('.job-item').forEach(el => el.classList.remove('selected'));
+  const el = document.getElementById('jitem-' + id);
+  if (el) el.classList.add('selected');
+  selectedJobId = id;
+  document.getElementById('selected-job-info').textContent = '#' + id + ' — ' + charName + ' / ' + otName;
+  document.getElementById('selected-job-info').style.color = '#a5b4fc';
+  updateSubmitBtn();
+  loadPrompts(id);
+}
+
+function updateSubmitBtn() {
+  const btn = document.getElementById('submit-btn');
+  const ready = selectedJobId && selectedFilePath;
+  btn.disabled = !ready;
+  btn.style.background = ready ? '#4f46e5' : '#1e293b';
+  btn.style.color = ready ? 'white' : '#64748b';
+  btn.style.cursor = ready ? 'pointer' : 'not-allowed';
+  btn.style.borderColor = ready ? '#6366f1' : '#334155';
+}
+
+async function loadPrompts(jobId) {
+  document.getElementById('prompt-pane-title').textContent = 'Prompts for Job #' + jobId;
+  const res = await fetch('/api/dock/job-prompts/' + jobId);
+  const prompts = await res.json();
+  const list = document.getElementById('prompt-list');
+  if (!prompts.length) {
+    list.innerHTML = '<div style="color:#475569;font-size:0.72rem;padding:8px 0;">No prompts linked to this job or its project.</div>';
+    return;
+  }
+  list.innerHTML = prompts.map(p => {
+    const statusClass = p.status;
+    const actions = [
+      { icon: '📋', title: 'Copy', onclick: `copyPromptDock(${p.id}, this)` },
+      { icon: '✓', title: 'Done', onclick: `setStatus(${p.id},'done',this)` },
+      { icon: '↺', title: 'Reset', onclick: `setStatus(${p.id},'pending',this)` },
+      { icon: '!', title: 'Flag', onclick: `setStatus(${p.id},'flagged',this)` },
+    ].map(a => `<button onclick="${a.onclick}" title="${a.title}" style="background:#1e293b;border:none;border-radius:3px;color:#64748b;font-size:0.65rem;padding:2px 4px;cursor:pointer;">${a.icon}</button>`).join('');
+
+    const label = p.label ? `<div style="font-size:0.62rem;color:#475569;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:2px;">${p.label}</div>` : '';
+    return `<div class="prompt-item ${statusClass}" id="dp-${p.id}" data-status="${p.status}">
+      ${label}
+      <div class="prompt-text ${statusClass}">${escHtml(p.text)}</div>
+      <div style="display:flex;gap:3px;margin-top:4px;">${actions}</div>
+    </div>`;
+  }).join('');
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+async function copyPromptDock(id, btn) {
+  const card = document.getElementById('dp-' + id);
+  const text = card.querySelector('.prompt-text').textContent.trim();
+  await navigator.clipboard.writeText(text);
+  if (card.dataset.status === 'pending') await setStatus(id, 'collected', btn);
+  showToast('Copied to clipboard!');
+}
+
+async function setStatus(id, status, btn) {
+  await fetch('/api/prompts/status/' + id, {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({status})
+  });
+  const card = document.getElementById('dp-' + id);
+  if (card) {
+    card.dataset.status = status;
+    card.className = 'prompt-item ' + status;
+    const txt = card.querySelector('.prompt-text');
+    txt.className = 'prompt-text ' + status;
+  }
+}
+
+function onDragOver(e) {
+  e.preventDefault();
+  document.getElementById('drop-zone').classList.add('drag-over');
+}
+function onDragLeave() {
+  document.getElementById('drop-zone').classList.remove('drag-over');
+}
+function onDrop(e) {
+  e.preventDefault();
+  const zone = document.getElementById('drop-zone');
+  zone.classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file) setDroppedFile(file.path || file.name);
+}
+function browseFile() {
+  const inp = document.createElement('input');
+  inp.type = 'file'; inp.accept = 'video/*,image/*';
+  inp.onchange = () => { if (inp.files[0]) setDroppedFile(inp.files[0].name); };
+  inp.click();
+}
+function setDroppedFile(path) {
+  selectedFilePath = path;
+  const zone = document.getElementById('drop-zone');
+  zone.textContent = '✓ ' + path.split(/[\\/]/).pop();
+  zone.classList.add('success');
+  const fn = document.getElementById('drop-filename');
+  fn.textContent = path; fn.style.display = '';
+  document.getElementById('submit-filepath').value = path;
+  updateSubmitBtn();
+}
+
+async function submitMedia() {
+  if (!selectedJobId || !selectedFilePath) return;
+  const btn = document.getElementById('submit-btn');
+  btn.textContent = 'Submitting…'; btn.disabled = true;
+  const fd = new FormData();
+  fd.append('job_id', selectedJobId);
+  fd.append('file_path', selectedFilePath);
+  const res = await fetch('/api/dock/submit-media', { method: 'POST', body: fd });
+  const data = await res.json();
+  if (data.ok) {
+    showToast('Media submitted: ' + (data.title || 'done'));
+    // Reset
+    selectedJobId = null; selectedFilePath = null;
+    document.getElementById('drop-zone').textContent = 'Drop a file here or click to browse';
+    document.getElementById('drop-zone').classList.remove('success');
+    document.getElementById('drop-filename').style.display = 'none';
+    document.getElementById('selected-job-info').textContent = 'No job selected.';
+    document.getElementById('selected-job-info').style.color = '#64748b';
+    document.querySelectorAll('.job-item').forEach(el => el.classList.remove('selected'));
+    btn.textContent = 'Submit & Close Job';
+    updateSubmitBtn();
+    refreshJobs();
+  }
+}
+
+async function refreshJobs() {
+  const pid = document.getElementById('project-select').value;
+  const res = await fetch('/api/dock/jobs' + (pid ? '?project_id=' + pid : ''));
+  const jobs = await res.json();
+  const list = document.getElementById('job-list');
+  if (!jobs.length) { list.innerHTML = '<div style="color:#475569;font-size:0.72rem;padding:8px 0;">No outstanding jobs.</div>'; return; }
+  list.innerHTML = jobs.map(j => `<div class="job-item" id="jitem-${j.id}" onclick="selectJob(${j.id},'${escHtml(j.character_name||'')}','${escHtml(j.output_type_name||'')}')">
+    <div class="job-name">${escHtml(j.character_name||'(no character)')}</div>
+    <div class="job-sub">${escHtml(j.output_type_name||'—')} · #${j.id} · ${j.status}</div>
+  </div>`).join('');
+}
+
+async function onProjectChange(pid) {
+  await refreshJobs();
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.style.display = '';
+  setTimeout(() => t.style.display = 'none', 2500);
+}
+function openSettings() { document.getElementById('settings-overlay').style.display = ''; }
+function closeSettings() { document.getElementById('settings-overlay').style.display = 'none'; }
+async function saveDockConfig(e) {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  await fetch('/dock/config', { method: 'POST', body: fd });
+  closeSettings();
+  showToast('Dock links saved.');
+}
+</script>
+</body>
+</html>

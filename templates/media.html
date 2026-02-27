@@ -1,0 +1,214 @@
+{% extends "base.html" %}
+{% block title %}Media Library — Pipeline Manager{% endblock %}
+{% block content %}
+<div class="mb-6 flex items-center justify-between">
+  <div>
+    <h1 class="text-2xl font-bold text-slate-100">Media Library</h1>
+    <p class="text-slate-500 text-sm mt-1">Link your rendered files to jobs. Metadata pre-populates from the job. Fill in the rest later in batches.</p>
+  </div>
+  <button onclick="openModal('import-modal')" class="btn btn-primary">＋ Import Asset</button>
+</div>
+
+<!-- Pending: Rendered jobs without media -->
+{% if pending_jobs %}
+<div class="mb-5 card border-amber-900">
+  <div class="flex items-center gap-2 mb-3">
+    <span class="text-amber-400 font-semibold text-sm">⚡ {{ pending_jobs|length }} rendered job{{ 's' if pending_jobs|length != 1 }} awaiting media</span>
+  </div>
+  <div class="space-y-2">
+    {% for job in pending_jobs %}
+    <div class="flex items-center justify-between bg-slate-900 rounded-lg px-3 py-2">
+      <div class="text-sm text-slate-300">#{{ job.id }} — {{ job.character_name or '?' }} / {{ job.output_type_name or '?' }}</div>
+      <button onclick="openQuickImport({{ job.id }})" class="btn btn-sm btn-secondary">Link File</button>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<!-- Filters -->
+<div class="flex items-center gap-4 mb-4 flex-wrap">
+  <div class="flex gap-2">
+    <a href="/media" class="btn btn-sm {% if not status_filter and not char_filter %}btn-primary{% else %}btn-ghost{% endif %}">All</a>
+    <a href="/media?status=unreviewed" class="btn btn-sm {% if status_filter=='unreviewed' %}btn-primary{% else %}btn-ghost{% endif %}">Unreviewed</a>
+    <a href="/media?status=approved" class="btn btn-sm {% if status_filter=='approved' %}btn-primary{% else %}btn-ghost{% endif %}">Approved</a>
+    <a href="/media?status=rejected" class="btn btn-sm {% if status_filter=='rejected' %}btn-primary{% else %}btn-ghost{% endif %}">Rejected</a>
+  </div>
+  <form method="GET" action="/media" class="flex items-center gap-2 ml-auto">
+    <select class="input w-auto text-sm" name="character_id" onchange="this.form.submit()">
+      <option value="">All Characters</option>
+      {% for c in characters %}<option value="{{ c.id }}" {% if char_filter==c.id|string %}selected{% endif %}>{{ c.name }}</option>{% endfor %}
+    </select>
+  </form>
+</div>
+
+<!-- Media list -->
+{% if items %}
+<div class="space-y-3">
+  {% for item in items %}
+  <div class="card hover:border-slate-700 transition-colors">
+    <div class="flex items-start gap-3">
+      <div class="w-1.5 self-stretch rounded-full flex-shrink-0
+        {% if item.quality_status=='approved' %}bg-green-500{% elif item.quality_status=='rejected' %}bg-red-700{% else %}bg-slate-700{% endif %}">
+      </div>
+      <div class="flex-1 min-w-0">
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0">
+            <div class="flex flex-wrap items-center gap-2 mb-1">
+              <span class="text-slate-100 font-semibold">{{ item.title or '(untitled)' }}</span>
+              {% if item.character_name %}<span class="badge badge-purple">{{ item.character_name }}</span>{% endif %}
+              {% if item.output_type_name %}<span class="badge badge-blue">{{ item.output_type_name }}</span>{% endif %}
+              {% if item.quality_status=='approved' %}<span class="badge badge-green">Approved</span>
+              {% elif item.quality_status=='rejected' %}<span class="badge badge-red">Rejected</span>
+              {% else %}<span class="badge badge-grey">Unreviewed</span>{% endif %}
+              {% if item.job_id %}<span class="badge badge-teal">Job #{{ item.job_id }}</span>{% endif %}
+            </div>
+            {% if item.file_path %}<div class="text-slate-600 text-xs font-mono truncate">{{ item.file_path }}</div>{% endif %}
+            {% if item.description %}<p class="text-slate-400 text-sm mt-1">{{ item.description }}</p>{% endif %}
+            {% if item.tags %}
+            <div class="flex flex-wrap gap-1 mt-1">
+              {% for tag in item.tags.split(',') %}{% if tag.strip() %}<span class="badge badge-grey">{{ tag.strip() }}</span>{% endif %}{% endfor %}
+            </div>
+            {% endif %}
+            {% if item.seo_title or item.seo_description %}
+            <div class="mt-2 p-2 bg-slate-900 rounded border border-slate-800 text-xs">
+              {% if item.seo_title %}<div class="text-blue-400 font-medium">{{ item.seo_title }}</div>{% endif %}
+              {% if item.seo_description %}<div class="text-slate-400 mt-0.5">{{ item.seo_description[:120] }}{% if item.seo_description|length > 120 %}…{% endif %}</div>{% endif %}
+            </div>
+            {% endif %}
+          </div>
+          <div class="flex items-start gap-1.5 flex-shrink-0">
+            <form method="POST" action="/media/update-status/{{ item.id }}">
+              <select class="bg-slate-800 border-0 text-xs rounded px-2 py-1.5 text-slate-300 cursor-pointer" name="quality_status" onchange="this.form.submit()">
+                <option value="unreviewed" {% if item.quality_status=='unreviewed' %}selected{% endif %}>Unreviewed</option>
+                <option value="approved" {% if item.quality_status=='approved' %}selected{% endif %}>Approved</option>
+                <option value="rejected" {% if item.quality_status=='rejected' %}selected{% endif %}>Rejected</option>
+              </select>
+            </form>
+            <button onclick="openEditMedia({{ item.id }}, `{{ item.title|e }}`, `{{ item.file_path|e }}`, `{{ item.description|e }}`, `{{ item.tags|e }}`, `{{ item.seo_title|e }}`, `{{ item.seo_description|e }}`, '{{ item.quality_status }}', `{{ item.notes|e }}`, `{{ item.prompt|default('')|e }}`)" class="btn btn-sm btn-ghost">Edit</button>
+            <form method="POST" action="/media/delete/{{ item.id }}" onsubmit="return confirm('Delete?')">
+              <button type="submit" class="btn btn-sm btn-danger">×</button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card text-slate-500 text-sm">No media assets yet.</div>
+{% endif %}
+
+<!-- Import Modal -->
+<dialog id="import-modal">
+  <div class="modal-header">
+    <span class="font-semibold text-slate-100">Import Media Asset</span>
+    <button onclick="closeModal('import-modal')" class="text-slate-500 hover:text-slate-300 text-xl">×</button>
+  </div>
+  <form method="POST" action="/media/add">
+    <div class="modal-body space-y-3" style="max-height:70vh;overflow-y:auto;">
+      <!-- Quick link: choose job to pre-populate -->
+      <div class="bg-slate-900 rounded-lg p-3">
+        <label>Link to Render Job <span class="text-slate-600">(auto-fills metadata)</span></label>
+        <select class="input mt-1" name="job_id" id="import-job-select" onchange="prefillFromJob(this.value)">
+          <option value="">— No job link —</option>
+          {% for j in all_jobs %}<option value="{{ j.id }}">#{{ j.id }} — {{ j.character_name or '?' }} / {{ j.output_type_name or '?' }}</option>{% endfor %}
+        </select>
+      </div>
+      <div><label>File Path *</label><input class="input" name="file_path" id="import-path" placeholder="C:\renders\output_001.mp4"></div>
+      <div><label>Title</label><input class="input" name="title" id="import-title" placeholder="Will auto-fill from job"></div>
+      <div><label>Quality Status</label>
+        <select class="input" name="quality_status">
+          <option value="unreviewed">Unreviewed</option>
+          <option value="approved">Approved</option>
+          <option value="rejected">Rejected</option>
+        </select>
+      </div>
+      <details>
+        <summary class="text-slate-400 text-sm cursor-pointer hover:text-slate-300 py-1">▸ Additional metadata (fill now or batch-edit later)</summary>
+        <div class="space-y-3 mt-3">
+          <input type="hidden" name="character_id" id="import-char-id">
+          <input type="hidden" name="output_type_id" id="import-ot-id">
+          <div><label>Description</label><textarea class="input" name="description" id="import-desc" rows="2"></textarea></div>
+          <div><label>Tags</label><input class="input" name="tags" id="import-tags"></div>
+          <div><label>SEO Title</label><input class="input" name="seo_title" id="import-seo-title"></div>
+          <div><label>SEO Description</label><textarea class="input" name="seo_description" id="import-seo-desc" rows="2"></textarea></div>
+          <div><label>Notes</label><input class="input" name="notes"></div>
+          <div><label>Prompt Used</label>
+            <textarea class="input" name="prompt" rows="2" placeholder="The render prompt for this asset..."></textarea>
+          </div>
+        </div>
+      </details>
+    </div>
+    <div class="modal-footer">
+      <button type="button" onclick="closeModal('import-modal')" class="btn btn-ghost">Cancel</button>
+      <button type="submit" class="btn btn-primary">Import</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Edit Modal -->
+<dialog id="edit-media-modal">
+  <div class="modal-header">
+    <span class="font-semibold text-slate-100">Edit Asset</span>
+    <button onclick="closeModal('edit-media-modal')" class="text-slate-500 hover:text-slate-300 text-xl">×</button>
+  </div>
+  <form id="edit-media-form" method="POST">
+    <div class="modal-body space-y-3" style="max-height:70vh;overflow-y:auto;">
+      <div><label>Title</label><input class="input" id="em-title" name="title"></div>
+      <div><label>File Path</label><input class="input" id="em-path" name="file_path"></div>
+      <div><label>Description</label><textarea class="input" id="em-desc" name="description" rows="2"></textarea></div>
+      <div><label>Tags</label><input class="input" id="em-tags" name="tags"></div>
+      <div><label>SEO Title</label><input class="input" id="em-seo-title" name="seo_title"></div>
+      <div><label>SEO Description</label><textarea class="input" id="em-seo-desc" name="seo_description" rows="2"></textarea></div>
+      <div><label>Quality Status</label>
+        <select class="input" id="em-status" name="quality_status">
+          <option value="unreviewed">Unreviewed</option><option value="approved">Approved</option><option value="rejected">Rejected</option>
+        </select>
+      </div>
+      <div><label>Notes</label><input class="input" id="em-notes" name="notes"></div>
+      <div><label>Prompt Used <span class="text-slate-600">(the render prompt for this asset)</span></label>
+        <textarea class="input" id="em-prompt" name="prompt" rows="3" placeholder="Paste the exact prompt used to generate this render..."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" onclick="closeModal('edit-media-modal')" class="btn btn-ghost">Cancel</button>
+      <button type="submit" class="btn btn-primary">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+async function prefillFromJob(jobId) {
+  if (!jobId) return;
+  const data = await fetch('/api/job-data/' + jobId).then(r => r.json());
+  if (data.auto_title) document.getElementById('import-title').value = data.auto_title;
+  if (data.auto_tags) document.getElementById('import-tags').value = data.auto_tags;
+  if (data.character_id) document.getElementById('import-char-id').value = data.character_id;
+  if (data.output_type_id) document.getElementById('import-ot-id').value = data.output_type_id;
+}
+function openQuickImport(jobId) {
+  document.getElementById('import-job-select').value = jobId;
+  prefillFromJob(jobId);
+  openModal('import-modal');
+}
+function openEditMedia(id, title, path, desc, tags, seoTitle, seoDesc, status, notes, prompt) {
+  document.getElementById('edit-media-form').action = '/media/edit/' + id;
+  document.getElementById('em-title').value = title;
+  document.getElementById('em-path').value = path;
+  document.getElementById('em-desc').value = desc;
+  document.getElementById('em-tags').value = tags;
+  document.getElementById('em-seo-title').value = seoTitle;
+  document.getElementById('em-seo-desc').value = seoDesc;
+  document.getElementById('em-status').value = status;
+  document.getElementById('em-notes').value = notes;
+  document.getElementById('em-prompt').value = prompt || '';
+  openModal('edit-media-modal');
+}
+// Auto-open quick import if referred from jobs page
+const params = new URLSearchParams(window.location.search);
+const linkJob = params.get('link_job');
+if (linkJob) { openQuickImport(parseInt(linkJob)); }
+</script>
+{% endblock %}

@@ -1,0 +1,296 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — Pipeline Manager{% endblock %}
+{% block content %}
+<div class="mb-6 flex items-center justify-between">
+  <div>
+    <h1 class="text-2xl font-bold text-slate-100">Dashboard</h1>
+    <p class="text-slate-500 text-sm mt-1">Your pipeline at a glance</p>
+  </div>
+  <a href="/jobs/builder" class="btn btn-primary">🔨 Build a Job</a>
+</div>
+
+<!-- Pipeline Funnel -->
+{% if funnel.total_possible > 0 %}
+<div class="card mb-6 border-indigo-900">
+  <div class="flex items-center justify-between mb-4">
+    <h2 class="text-slate-300 font-semibold">Combination Pipeline</h2>
+    <span class="text-slate-500 text-xs">Total possible combinations across all output types & characters</span>
+  </div>
+  <div class="grid grid-cols-5 gap-2">
+    {% set steps = [
+      ('Possible', funnel.total_possible, 'indigo'),
+      ('Planned', funnel.total_planned, 'blue'),
+      ('Rendered', funnel.total_rendered, 'amber'),
+      ('Imported', funnel.total_imported, 'teal'),
+      ('Complete', funnel.total_meta_complete, 'green'),
+    ] %}
+    {% for label, count, color in steps %}
+    <div class="text-center">
+      <div class="text-2xl font-bold text-{{ color }}-400">{{ count }}</div>
+      <div class="text-slate-500 text-xs mt-1">{{ label }}</div>
+      {% if not loop.last %}
+      {% set pct = ((count / funnel.total_possible) * 100)|int if funnel.total_possible > 0 else 0 %}
+      <div class="mt-2 bg-slate-800 rounded-full h-1.5"><div class="bg-{{ color }}-500 h-1.5 rounded-full" style="width:{{ pct }}%"></div></div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<!-- Stat grid -->
+<div class="grid grid-cols-6 gap-3 mb-8">
+  <a href="/archetypes" class="card hover:border-indigo-800 transition-colors block text-center py-3">
+    <div class="text-2xl font-bold text-indigo-400">{{ stats.archetypes }}</div>
+    <div class="text-slate-500 text-xs mt-1">Archetypes</div>
+  </a>
+  <a href="/characters" class="card hover:border-indigo-800 transition-colors block text-center py-3">
+    <div class="text-2xl font-bold text-violet-400">{{ stats.characters }}</div>
+    <div class="text-slate-500 text-xs mt-1">Characters</div>
+  </a>
+  <a href="/ingredients" class="card hover:border-indigo-800 transition-colors block text-center py-3">
+    <div class="text-2xl font-bold text-cyan-400">{{ stats.ingredients }}</div>
+    <div class="text-slate-500 text-xs mt-1">Ingredients</div>
+  </a>
+  <a href="/output-types" class="card hover:border-indigo-800 transition-colors block text-center py-3">
+    <div class="text-2xl font-bold text-teal-400">{{ stats.output_types }}</div>
+    <div class="text-slate-500 text-xs mt-1">Output Types</div>
+  </a>
+  <a href="/media" class="card hover:border-indigo-800 transition-colors block text-center py-3">
+    <div class="text-2xl font-bold text-rose-400">{{ stats.media_total }}</div>
+    <div class="text-slate-500 text-xs mt-1">Media Assets</div>
+  </a>
+  <a href="/top-layer" class="card hover:border-indigo-800 transition-colors block text-center py-3">
+    <div class="text-2xl font-bold text-orange-400">{{ stats.top_layer }}</div>
+    <div class="text-slate-500 text-xs mt-1">Top Layer</div>
+  </a>
+</div>
+
+<!-- Ideation Widget + Recent -->
+<div class="grid grid-cols-2 gap-6">
+
+  <!-- Random Ideation Widget -->
+  <div>
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="text-slate-300 font-semibold text-sm">🎲 Ideation Mixer</h2>
+      <span class="text-slate-600 text-xs">Lock components to keep them while rolling others</span>
+    </div>
+    <div class="card border-indigo-900" id="ideation-widget">
+      <div id="ideation-empty" class="text-slate-500 text-sm text-center py-4">
+        {% if not characters or not output_types %}
+        Add characters and output types first to use the mixer.
+        {% else %}
+        Click Roll to generate a random combination.
+        {% endif %}
+      </div>
+      <div id="ideation-result" class="hidden space-y-3">
+        <!-- populated by JS -->
+      </div>
+      <div class="flex gap-2 mt-4">
+        <button onclick="rollCombo()" class="btn btn-primary flex-1" id="roll-btn"
+          {% if not characters or not output_types %}disabled{% endif %}>
+          🎲 Roll All
+        </button>
+        <button onclick="createJobFromCombo()" class="btn btn-green hidden" id="create-job-btn">
+          ✚ Create Job
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Recent Jobs -->
+  <div>
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="text-slate-300 font-semibold text-sm">Recent Jobs</h2>
+      <a href="/jobs" class="text-indigo-400 text-xs hover:underline">View all →</a>
+    </div>
+    {% if recent_jobs %}
+    <div class="card p-0 overflow-hidden">
+      <table>
+        <thead><tr><th>Character</th><th>Output</th><th>Status</th></tr></thead>
+        <tbody>
+          {% for job in recent_jobs %}
+          <tr>
+            <td class="text-slate-200 font-medium">{{ job.character_name or '—' }}</td>
+            <td class="text-slate-400 text-xs">{{ job.output_type_name or '—' }}</td>
+            <td>{% if job.status=='complete' %}<span class="badge badge-green">Complete</span>
+                {% elif job.status=='rendered' %}<span class="badge badge-teal">Rendered</span>
+                {% elif job.status=='in_progress' %}<span class="badge badge-orange">In Progress</span>
+                {% elif job.status=='failed' %}<span class="badge badge-red">Failed</span>
+                {% else %}<span class="badge badge-grey">Planned</span>{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="card text-slate-600 text-sm"><a href="/jobs/builder" class="text-indigo-400 hover:underline">Build your first job →</a></div>
+    {% endif %}
+  </div>
+
+  <!-- Recent Media -->
+  <div class="col-span-2">
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="text-slate-300 font-semibold text-sm">Recent Media</h2>
+      <a href="/media" class="text-indigo-400 text-xs hover:underline">View all →</a>
+    </div>
+    {% if recent_media %}
+    <div class="card p-0 overflow-hidden">
+      <table>
+        <thead><tr><th>Title</th><th>Character</th><th>Output Type</th><th>Status</th></tr></thead>
+        <tbody>
+          {% for item in recent_media %}
+          <tr>
+            <td class="text-slate-200">{{ item.title or '(untitled)' }}</td>
+            <td class="text-slate-400">{{ item.character_name or '—' }}</td>
+            <td class="text-slate-400 text-xs">{{ item.output_type_name or '—' }}</td>
+            <td>{% if item.quality_status=='approved' %}<span class="badge badge-green">Approved</span>
+                {% elif item.quality_status=='rejected' %}<span class="badge badge-red">Rejected</span>
+                {% else %}<span class="badge badge-grey">Unreviewed</span>{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="card text-slate-600 text-sm col-span-2">No media yet. <a href="/media" class="text-indigo-400 hover:underline">Import your first asset →</a></div>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+let comboState = { character: null, output_type: null, ingredients: [], locked: {} };
+// locked keys: 'char', 'ot', or 'ing_cat_ID'
+
+async function rollCombo() {
+  const params = new URLSearchParams();
+  if (comboState.locked.char && comboState.character) params.append('char_id', comboState.character.id);
+  if (comboState.locked.ot && comboState.output_type) params.append('ot_id', comboState.output_type.id);
+  comboState.ingredients.forEach(ing => {
+    const key = 'ing_cat_' + ing.category.id;
+    if (comboState.locked[key] && ing.ingredient) params.append('ing_id', ing.ingredient.id);
+  });
+
+  const res = await fetch('/api/random-combo?' + params.toString());
+  const data = await res.json();
+  comboState.character = data.character;
+  comboState.output_type = data.output_type;
+  comboState.ingredients = data.ingredients;
+  renderWidget();
+}
+
+function renderWidget() {
+  const empty = document.getElementById('ideation-empty');
+  const result = document.getElementById('ideation-result');
+  const createBtn = document.getElementById('create-job-btn');
+  if (!comboState.character && !comboState.output_type) return;
+  empty.classList.add('hidden');
+  result.classList.remove('hidden');
+  createBtn.classList.remove('hidden');
+
+  let html = '';
+  // Character row
+  const charLocked = !!comboState.locked.char;
+  html += `<div class="flex items-center justify-between bg-slate-900 rounded-lg px-3 py-2 gap-2">
+    <div class="flex-1">
+      <div class="text-xs text-slate-500 uppercase tracking-wider">Character</div>
+      <div class="text-slate-100 font-semibold">${comboState.character ? comboState.character.name : '—'}</div>
+    </div>
+    <div class="flex gap-1.5 flex-shrink-0">
+      <button onclick="toggleLock('char')" class="btn btn-sm ${charLocked ? 'btn-secondary' : 'btn-ghost'}">${charLocked ? '🔒' : '🔓'}</button>
+      <button onclick="rerollChar()" class="btn btn-sm btn-ghost">🎲</button>
+    </div>
+  </div>`;
+
+  // Output type row
+  const otLocked = !!comboState.locked.ot;
+  html += `<div class="flex items-center justify-between bg-slate-900 rounded-lg px-3 py-2 gap-2">
+    <div class="flex-1">
+      <div class="text-xs text-slate-500 uppercase tracking-wider">Output Type</div>
+      <div class="text-slate-100 font-semibold">${comboState.output_type ? comboState.output_type.name : '—'}</div>
+    </div>
+    <div class="flex gap-1.5 flex-shrink-0">
+      <button onclick="toggleLock('ot')" class="btn btn-sm ${otLocked ? 'btn-secondary' : 'btn-ghost'}">${otLocked ? '🔒' : '🔓'}</button>
+      <button onclick="rerollOt()" class="btn btn-sm btn-ghost">🎲</button>
+    </div>
+  </div>`;
+
+  // Ingredients
+  comboState.ingredients.forEach(item => {
+    const key = 'ing_cat_' + item.category.id;
+    const locked = !!comboState.locked[key];
+    const ingName = item.ingredient ? (item.ingredient.code ? `[${item.ingredient.code}] ` : '') + item.ingredient.name : '— (none available)';
+    html += `<div class="flex items-center justify-between bg-slate-900 rounded-lg px-3 py-2 gap-2">
+      <div class="flex-1">
+        <div class="text-xs text-slate-500 uppercase tracking-wider">${item.category.name}</div>
+        <div class="text-slate-100 font-semibold">${ingName}</div>
+      </div>
+      <div class="flex gap-1.5 flex-shrink-0">
+        <button onclick="toggleLock('${key}')" class="btn btn-sm ${locked ? 'btn-secondary' : 'btn-ghost'}">${locked ? '🔒' : '🔓'}</button>
+        <button onclick="rerollIng(${item.category.id})" class="btn btn-sm btn-ghost">🎲</button>
+      </div>
+    </div>`;
+  });
+
+  result.innerHTML = html;
+}
+
+function toggleLock(key) {
+  comboState.locked[key] = !comboState.locked[key];
+  renderWidget();
+}
+
+async function rerollChar() {
+  const wasLocked = comboState.locked.char;
+  comboState.locked.char = false;
+  // Lock everything else
+  const otLocked = comboState.locked.ot;
+  const ingLocks = {...comboState.locked};
+  await rollCombo();
+  if (wasLocked === false) comboState.locked.char = false;
+}
+
+async function rerollOt() {
+  comboState.locked.ot = false;
+  const charState = comboState.character;
+  const prevCharLocked = comboState.locked.char;
+  comboState.locked.char = true;
+  await rollCombo();
+  if (!prevCharLocked) comboState.locked.char = false;
+}
+
+async function rerollIng(catId) {
+  const key = 'ing_cat_' + catId;
+  comboState.locked[key] = false;
+  // Lock char and ot
+  const prevChar = comboState.locked.char;
+  const prevOt = comboState.locked.ot;
+  comboState.locked.char = true;
+  comboState.locked.ot = true;
+  comboState.ingredients.forEach(i => {
+    if (i.category.id !== catId) comboState.locked['ing_cat_'+i.category.id] = true;
+  });
+  await rollCombo();
+  comboState.locked.char = prevChar;
+  comboState.locked.ot = prevOt;
+  comboState.ingredients.forEach(i => {
+    if (i.category.id !== catId) delete comboState.locked['ing_cat_'+i.category.id];
+  });
+}
+
+function createJobFromCombo() {
+  const form = document.createElement('form');
+  form.method = 'POST';
+  form.action = '/jobs/builder';
+  const add = (name, val) => { const i = document.createElement('input'); i.type='hidden'; i.name=name; i.value=val; form.appendChild(i); };
+  if (comboState.character) add('character_id', comboState.character.id);
+  if (comboState.output_type) add('output_type_id', comboState.output_type.id);
+  comboState.ingredients.forEach(item => { if (item.ingredient) add('ingredient_ids', item.ingredient.id); });
+  add('status', 'planned');
+  document.body.appendChild(form);
+  form.submit();
+}
+</script>
+{% endblock %}

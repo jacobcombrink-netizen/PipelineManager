@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pipeline Manager — Local AI Render Workflow Tool</title>
+  <meta name="description" content="A local-first render pipeline management tool for AI-generated media. Track characters, ingredients, render jobs, prompts and media assets. Free, open source, runs entirely on your machine.">
+  <style>
+    :root {
+      --bg:      #020617;
+      --bg2:     #0f172a;
+      --bg3:     #1e293b;
+      --border:  #334155;
+      --text:    #e2e8f0;
+      --dim:     #94a3b8;
+      --muted:   #64748b;
+      --accent:  #6366f1;
+      --accent2: #818cf8;
+      --green:   #22c55e;
+      --teal:    #14b8a6;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      line-height: 1.6;
+    }
+    a { color: var(--accent2); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* NAV */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      background: rgba(2,6,23,0.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 2rem;
+      display: flex; align-items: center; justify-content: space-between;
+      height: 56px;
+    }
+    .nav-brand { font-weight: 700; color: var(--accent2); font-size: 1rem; }
+    .nav-brand span { color: var(--muted); font-weight: 400; }
+    .nav-links { display: flex; gap: 1.5rem; align-items: center; }
+    .nav-links a { color: var(--dim); font-size: 0.875rem; }
+    .nav-links a:hover { color: var(--text); text-decoration: none; }
+    .btn-nav {
+      background: var(--accent); color: white !important;
+      padding: 0.4rem 1rem; border-radius: 6px; font-size: 0.85rem; font-weight: 600;
+    }
+    .btn-nav:hover { background: #4f46e5; text-decoration: none !important; }
+
+    /* HERO */
+    .hero {
+      padding: 140px 2rem 80px;
+      text-align: center;
+      max-width: 860px; margin: 0 auto;
+    }
+    .hero-badge {
+      display: inline-block;
+      background: rgba(99,102,241,0.15);
+      border: 1px solid rgba(99,102,241,0.3);
+      color: var(--accent2);
+      padding: 0.3rem 1rem; border-radius: 999px;
+      font-size: 0.78rem; font-weight: 600; letter-spacing: 0.05em;
+      text-transform: uppercase; margin-bottom: 1.5rem;
+    }
+    h1 {
+      font-size: clamp(2rem, 5vw, 3.5rem);
+      font-weight: 800; line-height: 1.15;
+      color: var(--text);
+      margin-bottom: 1.25rem;
+    }
+    h1 em { color: var(--accent2); font-style: normal; }
+    .hero-sub {
+      font-size: 1.15rem; color: var(--dim);
+      max-width: 600px; margin: 0 auto 2.5rem;
+    }
+    .hero-btns { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
+    .btn-primary {
+      background: var(--accent); color: white;
+      padding: 0.75rem 2rem; border-radius: 8px;
+      font-size: 1rem; font-weight: 700;
+      transition: background 0.15s, transform 0.1s;
+      display: inline-block;
+    }
+    .btn-primary:hover { background: #4f46e5; transform: translateY(-1px); text-decoration: none; }
+    .btn-secondary {
+      background: var(--bg3); color: var(--text);
+      border: 1px solid var(--border);
+      padding: 0.75rem 2rem; border-radius: 8px;
+      font-size: 1rem; font-weight: 600;
+      transition: background 0.15s;
+      display: inline-block;
+    }
+    .btn-secondary:hover { background: var(--border); text-decoration: none; }
+
+    /* SCREENSHOT PLACEHOLDER */
+    .screenshot-wrap {
+      max-width: 1100px; margin: 0 auto;
+      padding: 0 2rem 80px;
+    }
+    .screenshot-frame {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 40px 80px rgba(0,0,0,0.5);
+    }
+    .screen-bar {
+      background: var(--bg3);
+      padding: 0.6rem 1rem;
+      display: flex; gap: 6px; align-items: center;
+      border-bottom: 1px solid var(--border);
+    }
+    .dot { width: 10px; height: 10px; border-radius: 50%; }
+    .screen-content {
+      background: var(--bg);
+      height: 420px;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--muted); font-size: 0.85rem; flex-direction: column; gap: 8px;
+    }
+
+    /* FEATURES */
+    section { padding: 80px 2rem; }
+    .section-inner { max-width: 1100px; margin: 0 auto; }
+    .section-label {
+      font-size: 0.72rem; font-weight: 700; letter-spacing: 0.12em;
+      text-transform: uppercase; color: var(--accent2); margin-bottom: 0.75rem;
+    }
+    h2 { font-size: clamp(1.5rem, 3vw, 2.25rem); font-weight: 700; margin-bottom: 1rem; }
+    .section-sub { color: var(--dim); max-width: 600px; margin-bottom: 3rem; font-size: 1.05rem; }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 1.25rem;
+    }
+    .feature-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.5rem;
+      transition: border-color 0.15s;
+    }
+    .feature-card:hover { border-color: var(--accent); }
+    .feature-icon { font-size: 1.75rem; margin-bottom: 0.75rem; }
+    .feature-title { font-weight: 700; margin-bottom: 0.5rem; color: var(--text); }
+    .feature-desc { color: var(--dim); font-size: 0.9rem; line-height: 1.5; }
+
+    /* PIPELINE FLOW */
+    .pipeline {
+      background: var(--bg2);
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+    }
+    .pipeline-steps {
+      display: flex; flex-wrap: wrap;
+      align-items: center; justify-content: center;
+      gap: 0; padding: 2rem 0;
+    }
+    .pipeline-step {
+      text-align: center; padding: 1rem 1.5rem;
+    }
+    .step-num {
+      width: 36px; height: 36px; border-radius: 50%;
+      background: rgba(99,102,241,0.15);
+      border: 1px solid rgba(99,102,241,0.4);
+      color: var(--accent2); font-weight: 700; font-size: 0.85rem;
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 0.5rem;
+    }
+    .step-label { font-size: 0.8rem; color: var(--dim); font-weight: 600; }
+    .step-arrow { color: var(--muted); font-size: 1.2rem; padding: 0 0.25rem; align-self: center; }
+
+    /* INSTALL */
+    .install-block {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      max-width: 600px;
+    }
+    .install-bar {
+      background: var(--bg3); padding: 0.5rem 1rem;
+      display: flex; gap: 6px; align-items: center;
+      border-bottom: 1px solid var(--border);
+    }
+    .install-code {
+      padding: 1.25rem 1.5rem;
+      font-family: 'Cascadia Code', 'Consolas', monospace;
+      font-size: 0.875rem;
+      color: var(--text);
+      line-height: 1.8;
+    }
+    .install-code .comment { color: var(--muted); }
+    .install-code .cmd { color: var(--accent2); }
+
+    /* WHY LOCAL */
+    .why-grid {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+    @media (max-width: 600px) { .why-grid { grid-template-columns: 1fr; } }
+    .why-item {
+      background: var(--bg2); border: 1px solid var(--border);
+      border-radius: 8px; padding: 1.25rem;
+      display: flex; gap: 0.75rem; align-items: flex-start;
+    }
+    .why-icon { font-size: 1.25rem; flex-shrink: 0; }
+    .why-text strong { display: block; font-size: 0.9rem; margin-bottom: 0.2rem; }
+    .why-text span { color: var(--dim); font-size: 0.85rem; }
+
+    /* FOOTER */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 2rem; text-align: center;
+      color: var(--muted); font-size: 0.85rem;
+    }
+    footer a { color: var(--dim); }
+
+    /* FUNNEL VIZ */
+    .funnel-viz {
+      display: flex; align-items: flex-end; justify-content: center;
+      gap: 4px; height: 80px; margin: 2rem 0;
+    }
+    .funnel-bar {
+      border-radius: 4px 4px 0 0;
+      min-width: 48px;
+      display: flex; align-items: flex-end; justify-content: center;
+      padding-bottom: 4px;
+      font-size: 0.65rem; font-weight: 700; color: white;
+      transition: height 0.3s;
+    }
+  </style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-brand">Pipeline <span>Manager</span></div>
+  <div class="nav-links">
+    <a href="#features">Features</a>
+    <a href="#how-it-works">Workflow</a>
+    <a href="#install">Install</a>
+    <a href="https://github.com/jacobcombrink-netizen/pipeline_manager" target="_blank">GitHub</a>
+    <a href="https://github.com/jacobcombrink-netizen/pipeline_manager/releases/latest" class="btn-nav">⬇ Download</a>
+  </div>
+</nav>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-badge">Free & Open Source · Local-First · No Cloud</div>
+  <h1>Your AI render pipeline,<br><em>completely under control</em></h1>
+  <p class="hero-sub">Plan characters, queue prompts, track render jobs, and build a fully-tagged media library — all running locally on your machine.</p>
+  <div class="hero-btns">
+    <a href="https://github.com/jacobcombrink-netizen/pipeline_manager/releases/latest" class="btn-primary">⬇ Download Latest Release</a>
+    <a href="https://github.com/jacobcombrink-netizen/pipeline_manager" class="btn-secondary">View on GitHub →</a>
+  </div>
+</div>
+
+<!-- SCREENSHOT -->
+<div class="screenshot-wrap">
+  <div class="screenshot-frame">
+    <div class="screen-bar">
+      <div class="dot" style="background:#ef4444"></div>
+      <div class="dot" style="background:#f59e0b"></div>
+      <div class="dot" style="background:#22c55e"></div>
+      <span style="color:var(--muted);font-size:0.75rem;margin-left:8px;">Pipeline Manager — Dashboard</span>
+    </div>
+    <img src="assets/screenshot-dashboard.png" 
+       alt="Pipeline Manager Dashboard" 
+       style="width:100%;display:block;">
+  </div>
+</div>
+
+<!-- PIPELINE FLOW -->
+<div class="pipeline">
+  <div class="section-inner">
+    <div style="text-align:center;padding-top:2.5rem;">
+      <div class="section-label">The workflow</div>
+      <h2 style="margin-bottom:0.5rem;">From concept to published</h2>
+      <p style="color:var(--dim);margin-bottom:0;">The dashboard tracks every combination through the full funnel.</p>
+    </div>
+    <div class="pipeline-steps">
+      <div class="pipeline-step"><div class="step-num">1</div><div class="step-label">Define<br>Archetypes</div></div>
+      <div class="step-arrow">→</div>
+      <div class="pipeline-step"><div class="step-num">2</div><div class="step-label">Build<br>Characters</div></div>
+      <div class="step-arrow">→</div>
+      <div class="pipeline-step"><div class="step-num">3</div><div class="step-label">Set<br>Ingredients</div></div>
+      <div class="step-arrow">→</div>
+      <div class="pipeline-step"><div class="step-num">4</div><div class="step-label">Plan<br>Jobs</div></div>
+      <div class="step-arrow">→</div>
+      <div class="pipeline-step"><div class="step-num">5</div><div class="step-label">Render &amp;<br>Submit</div></div>
+      <div class="step-arrow">→</div>
+      <div class="pipeline-step"><div class="step-num">6</div><div class="step-label">Tag<br>Media</div></div>
+      <div class="step-arrow">→</div>
+      <div class="pipeline-step"><div class="step-num">7</div><div class="step-label">Publish<br>Top Layer</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- FEATURES -->
+<section id="features">
+  <div class="section-inner">
+    <div class="section-label">What's inside</div>
+    <h2>Everything your render workflow needs</h2>
+    <p class="section-sub">Built for creators who run structured, repeatable AI render pipelines and need to track it all without living in a spreadsheet.</p>
+    <div class="features-grid">
+
+      <div class="feature-card">
+        <div class="feature-icon">🧬</div>
+        <div class="feature-title">Archetype & Character Library</div>
+        <div class="feature-desc">Define Concept archetypes (original characters) and Meta archetypes (common tropes). Successful Metas seed new Concepts with built-in marketing vectors. Attach splash images with drag-drop or Ctrl+V paste.</div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">🧩</div>
+        <div class="feature-title">Ingredient System</div>
+        <div class="feature-desc">Categorise your animation building blocks — actions, motions, emotions, styles. Assign short codes. Define compatibility rules to flag which ingredients conflict or must appear together.</div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">🔨</div>
+        <div class="feature-title">Job Builder + Ideation Mixer</div>
+        <div class="feature-desc">Build deliberate render jobs by selecting a character, output type, and specific ingredients. Or use the dashboard Ideation Mixer to roll random combinations with per-component lock/unlock controls.</div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">📝</div>
+        <div class="feature-title">Project Journal & Prompt Queue</div>
+        <div class="feature-desc">Write prompts in the journal, allocate them to a project, and queue them for use. One click copies to clipboard and marks as collected. Flag prompts for revision, mark them done, or reset.</div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">🎬</div>
+        <div class="feature-title">Streamlined Media Import</div>
+        <div class="feature-desc">Link a file to a render job and title, tags, character, and output type auto-fill from the job. The prompt used is saved alongside. Batch-fill SEO fields later when you have time.</div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">🎞️</div>
+        <div class="feature-title">Top Layer Composites</div>
+        <div class="feature-desc">Link multiple render jobs to a composite clip. One click aggregates all their tags, descriptions, and SEO data — ready to copy-paste for publishing.</div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">🚀</div>
+        <div class="feature-title">Native Floating Dock</div>
+        <div class="feature-desc">A tkinter always-on-top window that floats over your render software. Select a job, load its prompt queue, copy prompts to clipboard, and submit media with a file-browser dialog — without touching the browser.</div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">📊</div>
+        <div class="feature-title">Pipeline Funnel Metrics</div>
+        <div class="feature-desc">Dashboard tracks all possible combinations across your library versus how many are planned, rendered, imported, and fully tagged. Know exactly how much work is left at every stage.</div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">💾</div>
+        <div class="feature-title">Export / Import</div>
+        <div class="feature-desc">Full JSON export of every table. Import merges records without touching existing data — so upgrading to a new version is just export, unzip, import. Your data survives every update.</div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- WHY LOCAL -->
+<section style="padding-top:0;">
+  <div class="section-inner">
+    <div class="section-label">Why local-first</div>
+    <h2>No accounts. No subscriptions. No data leaving your machine.</h2>
+    <p class="section-sub" style="margin-bottom:2rem;">Everything runs on your computer. The database is a single file you can copy anywhere.</p>
+    <div class="why-grid">
+      <div class="why-item">
+        <div class="why-icon">🔒</div>
+        <div class="why-text"><strong>Private by default</strong><span>Your characters, prompts, and creative process stay on your hardware. No analytics, no telemetry.</span></div>
+      </div>
+      <div class="why-item">
+        <div class="why-icon">⚡</div>
+        <div class="why-text"><strong>Zero latency</strong><span>Runs on localhost. Everything is instant — no round-trips to a server, no loading spinners on simple lookups.</span></div>
+      </div>
+      <div class="why-item">
+        <div class="why-icon">📦</div>
+        <div class="why-text"><strong>One file backup</strong><span>Your entire database is <code>pipeline.db</code>. Copy it to back up everything. The JSON export adds portability.</span></div>
+      </div>
+      <div class="why-item">
+        <div class="why-icon">🆓</div>
+        <div class="why-text"><strong>Free forever</strong><span>No tiers, no feature gates, no "upgrade to unlock". Install it, own it, fork it.</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- INSTALL -->
+<section id="install" style="background:var(--bg2);border-top:1px solid var(--border);border-bottom:1px solid var(--border);">
+  <div class="section-inner">
+    <div class="section-label">Get started</div>
+    <h2>Up and running in under a minute</h2>
+    <p class="section-sub">You need Python 3.8+ installed with "Add to PATH" ticked. That's the only requirement.</p>
+    <div class="install-block">
+      <div class="install-bar">
+        <div class="dot" style="background:#ef4444"></div>
+        <div class="dot" style="background:#f59e0b"></div>
+        <div class="dot" style="background:#22c55e"></div>
+        <span style="color:var(--muted);font-size:0.72rem;margin-left:6px;">Windows</span>
+      </div>
+      <div class="install-code">
+        <div class="comment"># 1. Download and unzip the release</div>
+        <div class="comment"># 2. First time only:</div>
+        <div class="cmd">setup.bat</div>
+        <br>
+        <div class="comment"># 3. Every time you want to use it:</div>
+        <div class="cmd">run.bat</div>
+        <br>
+        <div class="comment"># 4. Open in your browser:</div>
+        <div class="cmd">http://localhost:5000</div>
+        <br>
+        <div class="comment"># 5. Optional — floating dock:</div>
+        <div class="cmd">dock_launch.bat</div>
+      </div>
+    </div>
+
+    <div style="margin-top:2rem;">
+      <a href="https://github.com/jacobcombrink-netizen/pipeline_manager/releases/latest" class="btn-primary" style="font-size:0.95rem;">⬇ Download Latest Release</a>
+      &nbsp;&nbsp;
+      <a href="https://github.com/jacobcombrink-netizen/pipeline_manager" class="btn-secondary" style="font-size:0.95rem;">View Source on GitHub →</a>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <p>Pipeline Manager — MIT License — <a href="https://github.com/jacobcombrink-netizen/pipeline_manager">github.com/jacobcombrink-netizen/pipeline_manager</a></p>
+  <p style="margin-top:0.5rem;color:var(--muted);font-size:0.8rem;">Built with Flask · SQLite · Tailwind CSS · tkinter</p>
+</footer>
+
+</body>
+</html>

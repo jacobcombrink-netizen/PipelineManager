@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% block title %}Render Jobs — Pipeline Manager{% endblock %}
+{% block content %}
+<div class="mb-6 flex items-center justify-between">
+  <div>
+    <h1 class="text-2xl font-bold text-slate-100">Render Jobs</h1>
+    <p class="text-slate-500 text-sm mt-1">Track planned and completed work. Use the Job Builder for deliberate combinations.</p>
+  </div>
+  <a href="/jobs/builder" class="btn btn-primary">🔨 Job Builder</a>
+</div>
+
+<!-- Filter bar -->
+<div class="flex gap-2 mb-5">
+  <a href="/jobs" class="btn btn-sm {% if not status_filter %}btn-primary{% else %}btn-ghost{% endif %}">All</a>
+  <a href="/jobs?status=planned" class="btn btn-sm {% if status_filter=='planned' %}btn-primary{% else %}btn-ghost{% endif %}">Planned</a>
+  <a href="/jobs?status=in_progress" class="btn btn-sm {% if status_filter=='in_progress' %}btn-primary{% else %}btn-ghost{% endif %}">In Progress</a>
+  <a href="/jobs?status=rendered" class="btn btn-sm {% if status_filter=='rendered' %}btn-primary{% else %}btn-ghost{% endif %}">Rendered</a>
+  <a href="/jobs?status=complete" class="btn btn-sm {% if status_filter=='complete' %}btn-primary{% else %}btn-ghost{% endif %}">Complete</a>
+  <a href="/jobs?status=failed" class="btn btn-sm {% if status_filter=='failed' %}btn-primary{% else %}btn-ghost{% endif %}">Failed</a>
+</div>
+
+{% if items %}
+<div class="space-y-2">
+  {% for job in items %}
+  <div class="card hover:border-slate-700 transition-colors">
+    <div class="flex items-start gap-4">
+      <div class="text-slate-600 text-xs font-mono pt-0.5 w-8 flex-shrink-0">#{{ job.id }}</div>
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center gap-2 flex-wrap mb-1">
+          <span class="text-slate-100 font-semibold">{{ job.character_name or '(no character)' }}</span>
+          {% if job.output_type_name %}<span class="badge badge-blue">{{ job.output_type_name }}</span>{% endif %}
+          {% if job.id in jobs_with_media %}<span class="badge badge-green">Media Linked</span>{% endif %}
+          <!-- Status badge -->
+          {% if job.status=='complete' %}<span class="badge badge-green">Complete</span>
+          {% elif job.status=='rendered' %}<span class="badge badge-teal">Rendered</span>
+          {% elif job.status=='in_progress' %}<span class="badge badge-orange">In Progress</span>
+          {% elif job.status=='failed' %}<span class="badge badge-red">Failed</span>
+          {% else %}<span class="badge badge-grey">Planned</span>{% endif %}
+        </div>
+        <!-- Ingredients -->
+        {% if job_ingredients.get(job.id) %}
+        <div class="flex flex-wrap gap-1 mt-1 mb-1">
+          {% for ing in job_ingredients[job.id] %}
+          <span class="badge badge-grey">{{ ing.category_name }}: {% if ing.code %}[{{ ing.code }}] {% endif %}{{ ing.name }}</span>
+          {% endfor %}
+        </div>
+        {% endif %}
+        {% if job.notes %}<p class="text-slate-500 text-xs mt-1">{{ job.notes }}</p>{% endif %}
+      </div>
+      <div class="flex items-center gap-2 flex-shrink-0">
+        <!-- Quick status update -->
+        <form method="POST" action="/jobs/update-status/{{ job.id }}">
+          <select class="bg-slate-800 border-0 text-xs rounded px-2 py-1.5 text-slate-300 cursor-pointer" name="status" onchange="this.form.submit()">
+            <option value="planned" {% if job.status=='planned' %}selected{% endif %}>Planned</option>
+            <option value="in_progress" {% if job.status=='in_progress' %}selected{% endif %}>In Progress</option>
+            <option value="rendered" {% if job.status=='rendered' %}selected{% endif %}>Rendered</option>
+            <option value="complete" {% if job.status=='complete' %}selected{% endif %}>Complete</option>
+            <option value="failed" {% if job.status=='failed' %}selected{% endif %}>Failed</option>
+          </select>
+        </form>
+        {% if job.id not in jobs_with_media %}
+        <a href="/media?link_job={{ job.id }}" class="btn btn-sm btn-secondary">Link Media</a>
+        {% endif %}
+        <button onclick="openEditJob({{ job.id }}, '{{ job.character_id or '' }}', '{{ job.output_type_id or '' }}', '{{ job.status }}', `{{ job.notes|e }}`)" class="btn btn-sm btn-ghost">Edit</button>
+        <form method="POST" action="/jobs/delete/{{ job.id }}" onsubmit="return confirm('Delete this job?')">
+          <button type="submit" class="btn btn-sm btn-danger">×</button>
+        </form>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card text-slate-500 text-sm">No jobs found. <a href="/jobs/builder" class="text-indigo-400 hover:underline">Use the Job Builder →</a></div>
+{% endif %}
+
+<dialog id="edit-job-modal">
+  <div class="modal-header">
+    <span class="font-semibold text-slate-100">Edit Job</span>
+    <button onclick="closeModal('edit-job-modal')" class="text-slate-500 hover:text-slate-300 text-xl">×</button>
+  </div>
+  <form id="edit-job-form" method="POST">
+    <div class="modal-body space-y-3">
+      <div><label>Character</label>
+        <select class="input" id="ej-char" name="character_id">
+          <option value="">— None —</option>
+          {% for c in characters %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div><label>Output Type</label>
+        <select class="input" id="ej-ot" name="output_type_id">
+          <option value="">— None —</option>
+          {% for ot in output_types %}<option value="{{ ot.id }}">{{ ot.name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div><label>Status</label>
+        <select class="input" id="ej-status" name="status">
+          <option value="planned">Planned</option>
+          <option value="in_progress">In Progress</option>
+          <option value="rendered">Rendered</option>
+          <option value="complete">Complete</option>
+          <option value="failed">Failed</option>
+        </select>
+      </div>
+      <div><label>Notes</label><textarea class="input" id="ej-notes" name="notes" rows="3"></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" onclick="closeModal('edit-job-modal')" class="btn btn-ghost">Cancel</button>
+      <button type="submit" class="btn btn-primary">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+function openEditJob(id, charId, otId, status, notes) {
+  document.getElementById('edit-job-form').action = '/jobs/edit/' + id;
+  document.getElementById('ej-char').value = charId;
+  document.getElementById('ej-ot').value = otId;
+  document.getElementById('ej-status').value = status;
+  document.getElementById('ej-notes').value = notes;
+  openModal('edit-job-modal');
+}
+// Auto-open link media if coming from job
+const params = new URLSearchParams(window.location.search);
+if (params.get('link_job')) {
+  // scroll to media note
+}
+</script>
+{% endblock %}

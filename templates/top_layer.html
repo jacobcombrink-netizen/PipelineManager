@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+{% block title %}Top Layer — Pipeline Manager{% endblock %}
+{% block content %}
+<div class="mb-6 flex items-center justify-between">
+  <div>
+    <h1 class="text-2xl font-bold text-slate-100">Top Layer Media</h1>
+    <p class="text-slate-500 text-sm mt-1">Composite clips made from multiple render jobs. Link the constituent jobs and aggregate their metadata.</p>
+  </div>
+  <button onclick="openModal('add-top-modal')" class="btn btn-primary">＋ Add Clip</button>
+</div>
+
+{% if items %}
+<div class="space-y-5">
+  {% for item in items %}
+  <div class="card">
+    <div class="flex items-start justify-between gap-4 mb-4">
+      <div class="flex-1 min-w-0">
+        <div class="text-slate-100 font-semibold text-lg">{{ item.title or '(untitled)' }}</div>
+        {% if item.file_path %}<div class="text-slate-600 text-xs font-mono truncate">{{ item.file_path }}</div>{% endif %}
+        {% if item.description %}<p class="text-slate-400 text-sm mt-1">{{ item.description }}</p>{% endif %}
+        {% if item.tags %}
+        <div class="flex flex-wrap gap-1 mt-2">
+          {% for tag in item.tags.split(',') %}{% if tag.strip() %}<span class="badge badge-grey">{{ tag.strip() }}</span>{% endif %}{% endfor %}
+        </div>
+        {% endif %}
+        {% if item.seo_title or item.seo_description %}
+        <div class="mt-2 p-2 bg-slate-900 rounded border border-slate-800 text-xs">
+          {% if item.seo_title %}<div class="text-blue-400 font-medium">{{ item.seo_title }}</div>{% endif %}
+          {% if item.seo_description %}<div class="text-slate-400 mt-0.5">{{ item.seo_description }}</div>{% endif %}
+        </div>
+        {% endif %}
+      </div>
+      <div class="flex gap-1.5 flex-shrink-0">
+        <button onclick="generateMeta({{ item.id }})" class="btn btn-sm btn-secondary">⚡ Generate Meta</button>
+        <button onclick="openEditTop({{ item.id }}, `{{ item.title|e }}`, `{{ item.file_path|e }}`, `{{ item.description|e }}`, `{{ item.tags|e }}`, `{{ item.seo_title|e }}`, `{{ item.seo_description|e }}`, `{{ item.notes|e }}`)" class="btn btn-sm btn-ghost">Edit</button>
+        <form method="POST" action="/top-layer/delete/{{ item.id }}" onsubmit="return confirm('Delete this clip?')">
+          <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Linked jobs -->
+    <div class="border-t border-slate-800 pt-3">
+      <div class="flex items-center justify-between mb-2">
+        <div class="text-xs text-slate-500 uppercase tracking-wider">Constituent Jobs</div>
+        <form method="POST" action="/top-layer/link-job/{{ item.id }}" class="flex gap-2 items-center">
+          <select class="input w-auto text-xs py-1" name="job_id">
+            <option value="">— Link a job —</option>
+            {% for j in all_jobs %}<option value="{{ j.id }}">#{{ j.id }} {{ j.character_name or '' }} / {{ j.output_type_name or '' }}</option>{% endfor %}
+          </select>
+          <button type="submit" class="btn btn-sm btn-ghost">Link</button>
+        </form>
+      </div>
+
+      {% set linked = item_jobs.get(item.id, []) %}
+      {% if linked %}
+      <div class="space-y-1.5">
+        {% for j in linked %}
+        <div class="flex items-center justify-between bg-slate-900 rounded-lg px-3 py-2">
+          <div class="flex items-center gap-2 min-w-0">
+            <span class="text-slate-500 text-xs font-mono">#{{ j.id }}</span>
+            <span class="text-slate-200 text-sm">{{ j.character_name or '—' }}</span>
+            {% if j.output_type_name %}<span class="badge badge-blue">{{ j.output_type_name }}</span>{% endif %}
+            {% if j.media_title %}<span class="text-slate-400 text-xs truncate">— {{ j.media_title }}</span>{% endif %}
+            {% if j.quality_status == 'approved' %}<span class="badge badge-green">✓</span>
+            {% elif not j.media_title %}<span class="badge badge-orange">No media</span>{% endif %}
+          </div>
+          <form method="POST" action="/top-layer/unlink-job/{{ j.link_id }}">
+            <button type="submit" class="btn btn-sm btn-danger">×</button>
+          </form>
+        </div>
+        {% endfor %}
+      </div>
+      <!-- Aggregated tags preview -->
+      {% set all_tags_str = linked | map(attribute='media_tags') | select | join(',') %}
+      {% if all_tags_str %}
+      <div class="mt-2 pt-2 border-t border-slate-800">
+        <span class="text-xs text-slate-500">Aggregate tags: </span>
+        {% for tag in all_tags_str.split(',') %}{% if tag.strip() %}<span class="badge badge-grey mr-1">{{ tag.strip() }}</span>{% endif %}{% endfor %}
+      </div>
+      {% endif %}
+      {% else %}
+      <div class="text-slate-600 text-xs">No jobs linked yet. Use the dropdown above to link constituent render jobs.</div>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card text-slate-500 text-sm">No top layer clips yet. Add your first composite clip above.</div>
+{% endif %}
+
+<!-- Add Modal -->
+<dialog id="add-top-modal">
+  <div class="modal-header">
+    <span class="font-semibold text-slate-100">Add Top Layer Clip</span>
+    <button onclick="closeModal('add-top-modal')" class="text-slate-500 hover:text-slate-300 text-xl">×</button>
+  </div>
+  <form method="POST" action="/top-layer/add">
+    <div class="modal-body space-y-3">
+      <div><label>Title</label><input class="input" name="title" placeholder="e.g. Episode 03 Montage"></div>
+      <div><label>File Path</label><input class="input" name="file_path" placeholder="C:\renders\top_layer\ep03.mp4"></div>
+      <div><label>Notes</label><textarea class="input" name="notes" rows="2" placeholder="What's in this clip..."></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" onclick="closeModal('add-top-modal')" class="btn btn-ghost">Cancel</button>
+      <button type="submit" class="btn btn-primary">Add Clip</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Edit Modal -->
+<dialog id="edit-top-modal">
+  <div class="modal-header">
+    <span class="font-semibold text-slate-100">Edit Clip</span>
+    <button onclick="closeModal('edit-top-modal')" class="text-slate-500 hover:text-slate-300 text-xl">×</button>
+  </div>
+  <form id="edit-top-form" method="POST">
+    <div class="modal-body space-y-3" style="max-height:70vh;overflow-y:auto;">
+      <div><label>Title</label><input class="input" id="et-title" name="title"></div>
+      <div><label>File Path</label><input class="input" id="et-path" name="file_path"></div>
+      <div><label>Description</label><textarea class="input" id="et-desc" name="description" rows="2"></textarea></div>
+      <div><label>Tags</label><input class="input" id="et-tags" name="tags"></div>
+      <div><label>SEO Title</label><input class="input" id="et-seo-title" name="seo_title"></div>
+      <div><label>SEO Description</label><textarea class="input" id="et-seo-desc" name="seo_description" rows="3"></textarea></div>
+      <div><label>Notes</label><input class="input" id="et-notes" name="notes"></div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" onclick="closeModal('edit-top-modal')" class="btn btn-ghost">Cancel</button>
+      <button type="submit" class="btn btn-primary">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Generate Meta Modal -->
+<dialog id="meta-modal">
+  <div class="modal-header">
+    <span class="font-semibold text-slate-100">⚡ Generated Metadata</span>
+    <button onclick="closeModal('meta-modal')" class="text-slate-500 hover:text-slate-300 text-xl">×</button>
+  </div>
+  <div class="modal-body space-y-3">
+    <p class="text-slate-400 text-sm">Aggregated from linked jobs' media assets. Copy into the edit form above.</p>
+    <div><label>Characters</label><div id="meta-chars" class="input text-slate-300 min-h-8"></div></div>
+    <div><label>Tags</label><div id="meta-tags" class="input text-slate-300 min-h-8"></div></div>
+    <div><label>Combined Description</label><div id="meta-desc" class="input text-slate-300 min-h-16"></div></div>
+    <div><label>Combined SEO Description</label><div id="meta-seo" class="input text-slate-300 min-h-16"></div></div>
+  </div>
+  <div class="modal-footer">
+    <button type="button" onclick="closeModal('meta-modal')" class="btn btn-ghost">Close</button>
+  </div>
+</dialog>
+
+<script>
+function openEditTop(id, title, path, desc, tags, seoTitle, seoDesc, notes) {
+  document.getElementById('edit-top-form').action = '/top-layer/edit/' + id;
+  document.getElementById('et-title').value = title;
+  document.getElementById('et-path').value = path;
+  document.getElementById('et-desc').value = desc;
+  document.getElementById('et-tags').value = tags;
+  document.getElementById('et-seo-title').value = seoTitle;
+  document.getElementById('et-seo-desc').value = seoDesc;
+  document.getElementById('et-notes').value = notes;
+  openModal('edit-top-modal');
+}
+
+async function generateMeta(topId) {
+  document.getElementById('meta-chars').textContent = 'Loading...';
+  document.getElementById('meta-tags').textContent = '';
+  document.getElementById('meta-desc').textContent = '';
+  document.getElementById('meta-seo').textContent = '';
+  openModal('meta-modal');
+  const data = await fetch('/api/top-layer-meta/' + topId).then(r => r.json());
+  document.getElementById('meta-chars').textContent = data.characters || '(none)';
+  document.getElementById('meta-tags').textContent = data.tags || '(none)';
+  document.getElementById('meta-desc').textContent = data.description || '(none)';
+  document.getElementById('meta-seo').textContent = data.seo_description || '(none)';
+}
+</script>
+{% endblock %}

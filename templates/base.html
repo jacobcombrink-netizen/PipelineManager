@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Pipeline Manager{% endblock %}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: 'Inter', system-ui, sans-serif; }
+    .nav-link { display:flex;align-items:center;gap:0.5rem;padding:0.4rem 0.75rem;border-radius:0.5rem;font-size:0.85rem;color:#94a3b8;transition:all 0.15s;text-decoration:none; }
+    .nav-link:hover { background:#1e293b;color:#e2e8f0; }
+    .nav-link.active { background:#312e81;color:#a5b4fc;font-weight:600; }
+    .card { background:#0f172a;border:1px solid #1e293b;border-radius:0.75rem;padding:1.5rem; }
+    .input { background:#1e293b;border:1px solid #334155;border-radius:0.5rem;padding:0.5rem 0.75rem;color:#e2e8f0;font-size:0.875rem;width:100%; }
+    .input:focus { outline:none;border-color:#6366f1; }
+    select.input option { background:#1e293b; }
+    textarea.input { resize:vertical; }
+    .btn { padding:0.5rem 1.1rem;border-radius:0.5rem;font-size:0.875rem;font-weight:500;cursor:pointer;transition:all 0.15s;border:none; }
+    .btn-primary { background:#4f46e5;color:white; }
+    .btn-primary:hover { background:#4338ca; }
+    .btn-secondary { background:#1e3a8a;color:#93c5fd; }
+    .btn-secondary:hover { background:#1e40af; }
+    .btn-sm { padding:0.2rem 0.65rem;border-radius:0.375rem;font-size:0.72rem;font-weight:600;cursor:pointer;border:none; }
+    .btn-danger { background:#450a0a;color:#fca5a5; }
+    .btn-danger:hover { background:#7f1d1d; }
+    .btn-ghost { background:#1e293b;color:#94a3b8; }
+    .btn-ghost:hover { background:#334155;color:#e2e8f0; }
+    .btn-green { background:#14532d;color:#86efac; }
+    .btn-green:hover { background:#166534; }
+    table { width:100%;border-collapse:collapse; }
+    thead th { text-align:left;padding:0.6rem 0.75rem;font-size:0.7rem;text-transform:uppercase;letter-spacing:0.06em;color:#475569;border-bottom:1px solid #1e293b; }
+    tbody td { padding:0.7rem 0.75rem;font-size:0.85rem;border-bottom:1px solid #0f172a;color:#cbd5e1;vertical-align:middle; }
+    tbody tr:hover td { background:rgba(255,255,255,0.02); }
+    .badge { display:inline-block;padding:0.15rem 0.6rem;border-radius:9999px;font-size:0.68rem;font-weight:700;letter-spacing:0.03em; }
+    .badge-grey   { background:#1e293b;color:#94a3b8; }
+    .badge-green  { background:#14532d;color:#86efac; }
+    .badge-orange { background:#431407;color:#fb923c; }
+    .badge-red    { background:#450a0a;color:#fca5a5; }
+    .badge-blue   { background:#1e3a5f;color:#93c5fd; }
+    .badge-purple { background:#3b0764;color:#d8b4fe; }
+    .badge-teal   { background:#134e4a;color:#5eead4; }
+    .badge-pink   { background:#500724;color:#f9a8d4; }
+    .section-label { font-size:0.65rem;color:#475569;text-transform:uppercase;letter-spacing:0.1em;padding:0.75rem 0.75rem 0.25rem; }
+    .flash { background:#1e3a5f;border:1px solid #3b82f6;color:#93c5fd;padding:0.65rem 1rem;border-radius:0.5rem;font-size:0.85rem;margin-bottom:1.25rem; }
+    label { display:block;font-size:0.75rem;color:#64748b;margin-bottom:0.3rem;font-weight:500; }
+    dialog { background:#0f172a;border:1px solid #334155;border-radius:0.75rem;padding:0;color:#e2e8f0;max-width:560px;width:90vw; }
+    dialog::backdrop { background:rgba(0,0,0,0.7); }
+    .modal-header { padding:1.25rem 1.5rem;border-bottom:1px solid #1e293b;display:flex;align-items:center;justify-content:space-between; }
+    .modal-body { padding:1.5rem; }
+    .modal-footer { padding:1rem 1.5rem;border-top:1px solid #1e293b;display:flex;justify-content:flex-end;gap:0.75rem; }
+    .toggle-btn { display:inline-flex;border-radius:0.5rem;overflow:hidden;border:1px solid #334155; }
+    .toggle-btn input[type=radio] { display:none; }
+    .toggle-btn label { cursor:pointer;padding:0.35rem 0.9rem;font-size:0.8rem;font-weight:600;color:#64748b;background:#1e293b;margin:0;transition:all 0.15s; }
+    .toggle-btn input[type=radio]:checked + label { background:#4f46e5;color:white; }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen">
+<div class="flex min-h-screen">
+  <nav class="w-52 bg-slate-900 border-r border-slate-800 flex flex-col py-5 px-3 fixed h-full z-10">
+    <div class="px-3 mb-6">
+      <div class="text-indigo-400 font-bold text-base leading-tight">Pipeline<br>Manager</div>
+      <div class="text-slate-600 text-xs mt-1">Render Asset System</div>
+    </div>
+    <div class="flex-1 space-y-0.5 overflow-y-auto">
+      <a href="/" class="nav-link {% if request.path == '/' %}active{% endif %}">📊 Dashboard</a>
+      <div class="section-label">Ideation</div>
+      <a href="/archetypes" class="nav-link {% if '/archetypes' in request.path %}active{% endif %}">🧬 Archetypes</a>
+      <a href="/characters" class="nav-link {% if '/characters' in request.path %}active{% endif %}">🎭 Characters</a>
+      <div class="section-label">Pipeline</div>
+      <a href="/ingredients" class="nav-link {% if '/ingredients' in request.path %}active{% endif %}">🧩 Ingredients</a>
+      <a href="/output-types" class="nav-link {% if '/output-types' in request.path %}active{% endif %}">📦 Output Types</a>
+      <a href="/jobs/builder" class="nav-link {% if '/builder' in request.path %}active{% endif %}">🔨 Job Builder</a>
+      <a href="/jobs" class="nav-link {% if request.path == '/jobs' or (request.path.startswith('/jobs') and 'builder' not in request.path) %}active{% endif %}">⚙️ Render Jobs</a>
+      <div class="section-label">Media</div>
+      <a href="/media" class="nav-link {% if '/media' in request.path %}active{% endif %}">🎬 Media Library</a>
+      <a href="/top-layer" class="nav-link {% if '/top-layer' in request.path %}active{% endif %}">🎞️ Top Layer</a>
+
+      <div class="section-label">Journal</div>
+      <a href="/projects" class="nav-link {% if '/projects' in request.path %}active{% endif %}">📁 Projects</a>
+      <a href="/journal" class="nav-link {% if '/journal' in request.path %}active{% endif %}">📝 Journal</a>
+      <a href="/prompt-library" class="nav-link {% if '/prompt-library' in request.path %}active{% endif %}">💬 Prompts</a>
+      <div class="section-label">System</div>
+      <a href="/data" class="nav-link {% if '/data' in request.path %}active{% endif %}">💾 Data Manager</a>
+      <button onclick="openDock()" class="nav-link w-full text-left">🚀 Open Dock</button>
+    </div>
+    <div class="px-3 text-slate-700 text-xs">v0.2 — Phase 2</div>
+  </nav>
+  <main class="ml-52 flex-1 p-8 min-h-screen">
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}{% for msg in messages %}<div class="flash">{{ msg }}</div>{% endfor %}{% endif %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+  </main>
+</div>
+<script>
+function openModal(id) { document.getElementById(id).showModal(); }
+function closeModal(id) { document.getElementById(id).close(); }
+</script>
+
+<script>
+// ─── Global Image Upload Component ───────────────────────────────────────────
+// Called by archetype/character edit modals
+async function handleImageUpload(file, previewId, hiddenInputId) {
+  if (!file || !file.type.startsWith('image/')) return;
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    const b64 = e.target.result;
+    const res = await fetch('/upload-image', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ image_b64: b64, mime: file.type })
+    });
+    const data = await res.json();
+    if (data.url) {
+      document.getElementById(previewId).src = data.url;
+      document.getElementById(previewId).classList.remove('hidden');
+      document.getElementById(hiddenInputId).value = data.filename;
+    }
+  };
+  reader.readAsDataURL(file);
+}
+
+function setupImageZone(zoneId, previewId, hiddenInputId) {
+  const zone = document.getElementById(zoneId);
+  if (!zone) return;
+
+  // Drag & drop
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('border-indigo-500'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('border-indigo-500'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault();
+    zone.classList.remove('border-indigo-500');
+    const file = e.dataTransfer.files[0];
+    handleImageUpload(file, previewId, hiddenInputId);
+  });
+
+  // Click to browse
+  zone.addEventListener('click', () => {
+    const inp = document.createElement('input');
+    inp.type = 'file'; inp.accept = 'image/*';
+    inp.onchange = () => handleImageUpload(inp.files[0], previewId, hiddenInputId);
+    inp.click();
+  });
+}
+
+// Global Ctrl+V paste — only works when an image zone is visible (modal open)
+document.addEventListener('paste', async (e) => {
+  const items = [...e.clipboardData.items];
+  const imgItem = items.find(i => i.type.startsWith('image/'));
+  if (!imgItem) return;
+  // Find whichever zone is currently visible
+  const zones = document.querySelectorAll('[data-image-zone]');
+  for (const zone of zones) {
+    if (zone.offsetParent !== null) { // visible
+      const previewId = zone.dataset.previewId;
+      const hiddenId = zone.dataset.hiddenId;
+      handleImageUpload(imgItem.getAsFile(), previewId, hiddenId);
+      break;
+    }
+  }
+});
+</script>
+</body>
+</html>
